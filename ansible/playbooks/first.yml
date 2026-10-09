@@ -1,0 +1,28 @@
+---
+- name: Premier playbook
+  hosts: cibles
+  become: true
+  tasks:
+    - name: Installer des paquets de base
+      ansible.builtin.apt:
+        name:
+          - tree
+          - htop
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Créer un utilisateur de test
+      ansible.builtin.user:
+        name: labuser
+        shell: /bin/bash
+        create_home: true
+        state: present
+
+    - name: Déposer une bannière de connexion
+      ansible.builtin.copy:
+        dest: /etc/motd
+        content: "Machine gérée par Ansible - ne pas modifier à la main\n"
+        owner: root
+        group: root
+        mode: "0644"
