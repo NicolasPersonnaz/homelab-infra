@@ -1,0 +1,4 @@
+---
+ssh_permit_root_login: "no"
+ssh_max_auth_tries: 4
+ssh_login_grace_time: 30

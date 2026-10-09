@@ -1,0 +1,7 @@
+---
+common_packages:
+  - tree
+  - htop
+  - curl
+  - vim
+common_timezone: Europe/Paris

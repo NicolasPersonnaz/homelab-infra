@@ -15,3 +15,30 @@ Résultat vérifié :
 - après suppression manuelle de `tree` : changed=1, l'état est rétabli
 
 Pièges : un clone duplique les identités (machine-id, clés SSH de l'hôte) ; le mot de passe du compte `ansible` n'a servi qu'à copier la clé.
+
+## Rôles
+
+| Rôle | Rôle dans la baseline |
+|---|---|
+| common | Paquets de base, fuseau horaire, bannière de connexion (template) |
+| users | Comptes et clés SSH publiques, pilotés par la variable `users_list` |
+| ssh | Configuration sshd durcie (fichier complémentaire), validée par `sshd -t`, rechargement par handler |
+
+## Utilisation
+
+    cd ansible
+    ansible-playbook site.yml --check --diff
+    ansible-playbook site.yml
+
+## Résultat vérifié
+
+- 1er passage : changed=3 (clé SSH, configuration sshd, handler)
+- 2e passage : changed=0 (idempotence)
+- Handler : modifier `ssh_max_auth_tries` recharge sshd, et uniquement dans ce cas
+- Vérifié sur la cible : `sshd -T` affiche permitrootlogin no et maxauthtries 4
+
+## Pièges rencontrés
+
+- Une erreur dans une clé SSH publique (faute de frappe) fait échouer la tâche : `--syntax-check` ne vérifie pas le contenu des données.
+- Une tâche en échec arrête le playbook sur la machine, donc les rôles suivants ne s'exécutent pas.
+- `validate: sshd -t -f %s` évite d'écraser un fichier de configuration invalide.

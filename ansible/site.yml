@@ -1,0 +1,8 @@
+---
+- name: Baseline des serveurs
+  hosts: cibles
+  become: true
+  roles:
+    - common
+    - users
+    - ssh

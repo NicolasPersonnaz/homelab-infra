@@ -1,0 +1,7 @@
+# Géré par Ansible - ne pas modifier à la main
+PermitRootLogin {{ ssh_permit_root_login }}
+MaxAuthTries {{ ssh_max_auth_tries }}
+LoginGraceTime {{ ssh_login_grace_time }}
+X11Forwarding no
+ClientAliveInterval 300
+ClientAliveCountMax 2

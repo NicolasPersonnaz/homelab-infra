@@ -1,0 +1,19 @@
+---
+- name: Installer les paquets de base
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Définir le fuseau horaire
+  community.general.timezone:
+    name: "{{ common_timezone }}"
+
+- name: Déposer la bannière de connexion
+  ansible.builtin.template:
+    src: motd.j2
+    dest: /etc/motd
+    owner: root
+    group: root
+    mode: "0644"
