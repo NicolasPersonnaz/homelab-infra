@@ -75,7 +75,10 @@ Accès depuis un poste : ajouter `192.168.1.69 gitlab.<domaine>` dans `/etc/host
 - Puma en mode simple (un seul processus, pas de « cluster worker »).
 - Mémoire environ 5 minutes après le démarrage : 3,0 Go utilisés sur 7,9 Go, swap 2 Go presque inutilisé (268 Ko), `vm.swappiness = 10`.
 - HTTPS depuis `gestion` avec la CA : `curl --cacert` répond `200` avec `ssl_verify=0`, `openssl s_client` affiche `issuer=CN=Homelab CA` et `Verify return code: 0 (ok)`.
-- `gitlab-runner` et `docker` : `active`. Runner **pas encore enregistré** : [À COMPLÉTER : runner « online » dans l'interface, premier pipeline].
+- `gitlab-runner` et `docker` : `active`.
+- Enregistrement du runner (jeton saisi à l'invite masquée) : `ok=46 changed=1`, puis `changed=0` au passage suivant.
+- `gitlab-runner verify` : `Verifying runner... is valid`. Dans `config.toml` : `executor = "docker"`, `privileged = false`, `tls-ca-file` vers la CA interne, `extra_hosts` vers l'IP de la VM, aucun `docker.sock` monté.
+- Pipeline de test (projet privé `ci-smoke-test`) : `success` en 14 s. Le job s'exécute dans `debian:trixie-slim`, clone le dépôt en HTTPS (`Getting source from Git repository`) et confirme `pas de docker.sock dans le job`.
 
 ## Pièges rencontrés
 
@@ -92,9 +95,11 @@ Accès depuis un poste : ajouter `192.168.1.69 gitlab.<domaine>` dans `/etc/host
 | Limite | Piste |
 |---|---|
 | Runner et GitLab sur la même VM : un job qui s'échappe de son conteneur atteint le serveur. Le service runner a un accès root au démon Docker | Compromis assumé pour le homelab. VM runner séparée, ou exécuteur sur une machine jetable |
+| Les jobs tournent en root dans leur conteneur (`uid=0` observé), sans remappage des utilisateurs | `userns-remap` dans Docker, ou images qui tournent sous un utilisateur non root |
 | Le certificat serveur (825 jours) n'est pas renouvelé automatiquement (`ignore_timestamps` par défaut) | Tâche planifiée ou contrôle d'expiration dans le rôle |
 | La CA doit être importée à la main sur chaque poste client | Distribution de la CA par Ansible sur les machines gérées |
+| Mot de passe initial de `root` lu dans `/etc/gitlab/initial_root_password` (supprimé après 24 h) | À changer dès la première connexion ; sinon `gitlab-rake "gitlab:password:reset[root]"` (invite masquée) |
 | Pas de DNS : le nom se résout par `/etc/hosts` | Enregistrement sur le DNS local |
 | Pas de sauvegarde | `gitlab-backup create` planifié + copie de `/etc/gitlab/gitlab-secrets.json` hors de la VM |
 
-Suite prévue : enregistrement du runner, puis jonction Teleport par la méthode `gitlab` (OIDC) avec `static_jwks`.
+Suite prévue : jonction Teleport par la méthode `gitlab` (OIDC) avec `static_jwks`.
