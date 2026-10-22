@@ -1,0 +1,97 @@
+---
+- name: Vérifier les variables obligatoires
+  ansible.builtin.assert:
+    that:
+      - gitlab_ip | length > 0
+      - gitlab_hostname != 'gitlab.example.lan'
+    fail_msg: "Renseigner gitlab_hostname et gitlab_ip dans group_vars/gitlab.yml"
+
+- name: Importer le fichier d'échange
+  ansible.builtin.import_tasks: swap.yml
+
+- name: Importer la CA et le certificat
+  ansible.builtin.import_tasks: tls.yml
+
+- name: Résolution locale du nom GitLab
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '\s{{ gitlab_hostname | regex_escape }}$'
+    line: "{{ gitlab_ip }} {{ gitlab_hostname }}"
+
+- name: Dépendances de GitLab
+  ansible.builtin.apt:
+    name: [curl, ca-certificates, openssh-server, perl]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Dossier des clés APT
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Clé du dépôt GitLab
+  ansible.builtin.get_url:
+    url: https://packages.gitlab.com/gpgkey/gpg.key
+    dest: /etc/apt/keyrings/gitlab-ce.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+# deb822 : format natif de Debian 13, sans dépendance à gpg ni apt-key.
+- name: Dépôt GitLab CE
+  ansible.builtin.deb822_repository:
+    name: gitlab-ce
+    types: deb
+    uris: "https://packages.gitlab.com/gitlab/gitlab-ce/{{ ansible_distribution | lower }}/{{ ansible_distribution_release }}"
+    suites: "{{ ansible_distribution_release }}"
+    components: main
+    signed_by: /etc/apt/keyrings/gitlab-ce.asc
+    state: present
+
+# gitlab.rb déposé avant le paquet : le paquet ne l'écrase pas s'il existe.
+- name: Dossier de configuration GitLab
+  ansible.builtin.file:
+    path: /etc/gitlab
+    state: directory
+    owner: root
+    group: root
+    mode: "0775"
+
+- name: Configuration GitLab
+  ansible.builtin.template:
+    src: gitlab.rb.j2
+    dest: /etc/gitlab/gitlab.rb
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Reconfigurer GitLab
+
+- name: Installer GitLab CE (version épinglée)
+  ansible.builtin.apt:
+    name: "gitlab-ce={{ gitlab_version }}"
+    state: present
+    update_cache: true
+    allow_change_held_packages: true
+  notify: Reconfigurer GitLab
+
+- name: Bloquer les mises à jour automatiques de GitLab
+  ansible.builtin.dpkg_selections:
+    name: gitlab-ce
+    selection: hold
+
+- name: Appliquer la configuration
+  ansible.builtin.meta: flush_handlers
+
+- name: Vérifier que GitLab répond en HTTPS avec un certificat valide
+  ansible.builtin.uri:
+    url: "{{ gitlab_external_url }}/users/sign_in"
+    ca_path: "{{ gitlab_ca_trust_path }}"
+    status_code: 200
+  register: gitlab_signin
+  until: gitlab_signin.status == 200
+  retries: 30
+  delay: 10

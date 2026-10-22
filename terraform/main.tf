@@ -1,6 +1,9 @@
-resource "proxmox_virtual_environment_vm" "lab" {
-  name      = "tf-test-01"
+resource "proxmox_virtual_environment_vm" "vm" {
+  for_each = var.vms
+
+  name      = each.key
   node_name = var.node_name
+  on_boot   = true
 
   clone {
     vm_id = var.template_vmid
@@ -11,11 +14,18 @@ resource "proxmox_virtual_environment_vm" "lab" {
   }
 
   cpu {
-    cores = 2
+    cores = each.value.cores
   }
 
   memory {
-    dedicated = 2048
+    dedicated = each.value.memory
+  }
+
+  # Agrandit le disque cloné ; cloud-init étend la partition au premier démarrage.
+  disk {
+    datastore_id = var.datastore_id
+    interface    = "scsi0"
+    size         = each.value.disk_size
   }
 
   network_device {
@@ -23,12 +33,16 @@ resource "proxmox_virtual_environment_vm" "lab" {
   }
 
   initialization {
-    datastore_id = "local-lvm"
+    datastore_id = var.datastore_id
     interface    = "ide2"
+
+    dns {
+      servers = var.dns_servers
+    }
 
     ip_config {
       ipv4 {
-        address = "${var.vm_ip}/24"
+        address = "${each.value.ip}/24"
         gateway = var.gateway
       }
     }
@@ -38,4 +52,8 @@ resource "proxmox_virtual_environment_vm" "lab" {
       keys     = [var.ssh_public_key]
     }
   }
+}
+
+output "vm_ips" {
+  value = { for name, vm in var.vms : name => vm.ip }
 }

@@ -2,5 +2,14 @@ proxmox_endpoint = "https://<ip-proxmox>:8006/"
 node_name        = "lan"
 template_vmid    = 9000
 ssh_public_key   = "ssh-ed25519 AAAA"
-vm_ip            = "192.168.1.61"
 gateway          = "192.168.1.254"
+dns_servers      = ["192.168.1.254"]
+
+vms = {
+  gitlab = {
+    ip        = "192.168.1.61"
+    cores     = 4
+    memory    = 8192
+    disk_size = 50
+  }
+}

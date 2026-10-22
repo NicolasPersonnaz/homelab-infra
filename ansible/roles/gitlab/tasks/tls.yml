@@ -1,0 +1,122 @@
+---
+# CA : générée une fois sur le contrôleur, sa clé ne quitte jamais le contrôleur.
+- name: Dossier de la CA (contrôleur)
+  ansible.builtin.file:
+    path: "{{ gitlab_ca_dir }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Clé privée de la CA (contrôleur)
+  community.crypto.openssl_privatekey:
+    path: "{{ gitlab_ca_dir }}/ca.key"
+    type: ECC
+    curve: secp384r1
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Demande de certificat de la CA (contrôleur)
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: "{{ gitlab_ca_dir }}/ca.key"
+    common_name: "{{ gitlab_ca_name }}"
+    basic_constraints: ["CA:TRUE", "pathlen:0"]
+    basic_constraints_critical: true
+    key_usage: [keyCertSign, cRLSign]
+    key_usage_critical: true
+  delegate_to: localhost
+  become: false
+  run_once: true
+  changed_when: false
+  register: gitlab_ca_csr
+
+- name: Certificat auto-signé de la CA (contrôleur)
+  community.crypto.x509_certificate:
+    path: "{{ gitlab_ca_dir }}/ca.crt"
+    csr_content: "{{ gitlab_ca_csr.csr }}"
+    privatekey_path: "{{ gitlab_ca_dir }}/ca.key"
+    provider: selfsigned
+    selfsigned_not_after: "+3650d"
+    mode: "0644"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Faire confiance à la CA sur la VM
+  ansible.builtin.copy:
+    src: "{{ gitlab_ca_dir }}/ca.crt"
+    dest: "{{ gitlab_ca_trust_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Mettre à jour les CA du système
+
+# Seul ce handler peut être en attente ici : la confiance est active avant la suite.
+- name: Appliquer la confiance dans la CA
+  ansible.builtin.meta: flush_handlers
+
+# Certificat serveur : la clé est générée sur la VM, seule la CSR voyage.
+- name: Bibliothèque cryptography sur la VM
+  ansible.builtin.apt:
+    name: python3-cryptography
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Dossier des certificats GitLab
+  ansible.builtin.file:
+    path: /etc/gitlab/ssl
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Clé privée du serveur GitLab
+  community.crypto.openssl_privatekey:
+    path: "/etc/gitlab/ssl/{{ gitlab_hostname }}.key"
+    type: ECC
+    curve: secp384r1
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Demande de certificat du serveur GitLab
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: "/etc/gitlab/ssl/{{ gitlab_hostname }}.key"
+    common_name: "{{ gitlab_hostname }}"
+    subject_alt_name:
+      - "DNS:{{ gitlab_hostname }}"
+      - "IP:{{ gitlab_ip }}"
+    extended_key_usage: [serverAuth]
+  changed_when: false
+  register: gitlab_server_csr
+
+- name: Lire le certificat serveur existant
+  ansible.builtin.slurp:
+    src: "/etc/gitlab/ssl/{{ gitlab_hostname }}.crt"
+  register: gitlab_server_cert_current
+  failed_when: false
+
+- name: Signer le certificat serveur avec la CA (contrôleur)
+  community.crypto.x509_certificate_pipe:
+    content: "{{ (gitlab_server_cert_current.content | b64decode) if gitlab_server_cert_current.content is defined else omit }}"
+    csr_content: "{{ gitlab_server_csr.csr }}"
+    provider: ownca
+    ownca_path: "{{ gitlab_ca_dir }}/ca.crt"
+    ownca_privatekey_path: "{{ gitlab_ca_dir }}/ca.key"
+    ownca_not_after: "{{ gitlab_cert_validity }}"
+  delegate_to: localhost
+  become: false
+  register: gitlab_server_cert
+
+- name: Déposer le certificat serveur
+  ansible.builtin.copy:
+    content: "{{ gitlab_server_cert.certificate }}"
+    dest: "/etc/gitlab/ssl/{{ gitlab_hostname }}.crt"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reconfigurer GitLab

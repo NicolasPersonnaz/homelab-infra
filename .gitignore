@@ -9,3 +9,7 @@ id_*
 *.tfvars
 tfplan
 crash.log
+ansible/inventories/homelab/group_vars/gestion.yml
+.env
+*.env
+ansible/inventories/homelab/group_vars/*.yml

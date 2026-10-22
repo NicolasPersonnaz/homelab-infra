@@ -23,6 +23,8 @@ Pièges : un clone duplique les identités (machine-id, clés SSH de l'hôte) ; 
 | common | Paquets de base, fuseau horaire, bannière de connexion (template) |
 | users | Comptes et clés SSH publiques, pilotés par la variable `users_list` |
 | ssh | Configuration sshd durcie (fichier complémentaire), validée par `sshd -t`, rechargement par handler |
+| gitlab | GitLab CE épinglé, HTTPS par CA interne, réglages mémoire, swap. Voir [roles/gitlab/README.md](roles/gitlab/README.md) |
+| gitlab_runner | Docker Engine et GitLab Runner (systemd, exécuteur Docker), enregistrement par jeton saisi au prompt |
 
 ## Utilisation
 

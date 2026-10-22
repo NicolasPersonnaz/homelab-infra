@@ -1,0 +1,16 @@
+---
+# À la racine (comme site.yml) pour charger group_vars/all.yml.
+- name: Serveur GitLab et runner
+  hosts: gitlab
+  become: true
+  vars_prompt:
+    - name: gitlab_runner_token
+      prompt: "Jeton du runner glrt- (vide si déjà enregistré ou pas encore créé)"
+      private: true
+      default: ""
+  roles:
+    - common
+    - users
+    - ssh
+    - gitlab
+    - gitlab_runner

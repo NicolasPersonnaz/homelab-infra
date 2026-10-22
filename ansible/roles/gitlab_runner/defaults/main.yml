@@ -1,0 +1,10 @@
+---
+# Version épinglée (le paquet helper-images doit avoir exactement la même)
+gitlab_runner_version: "19.5.0-1"
+gitlab_runner_url: "https://{{ gitlab_hostname }}"
+gitlab_runner_name: "{{ inventory_hostname }}"
+gitlab_runner_token: ""                          # glrt-…, saisi au prompt, jamais stocké
+gitlab_runner_ca_file: /usr/local/share/ca-certificates/homelab-ca.crt
+gitlab_runner_docker_image: "debian:trixie-slim"
+# Les conteneurs n'héritent pas de /etc/hosts : on leur donne le nom de GitLab.
+gitlab_runner_extra_hosts: "{{ gitlab_hostname }}:{{ gitlab_ip }}"

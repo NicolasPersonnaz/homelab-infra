@@ -1,0 +1,18 @@
+---
+# Version épinglée : la changer ici = montée de version volontaire.
+gitlab_version: "19.5.1-ce.0"
+gitlab_hostname: gitlab.example.lan
+gitlab_ip: ""                                   # adresse LAN de la VM, pour /etc/hosts
+gitlab_external_url: "https://{{ gitlab_hostname }}"
+
+# Réglages « memory-constrained » (documentation Omnibus)
+gitlab_puma_worker_processes: 0
+gitlab_sidekiq_concurrency: 10
+gitlab_swap_size_mb: 2048
+gitlab_swappiness: 10
+
+# CA interne : clé et certificat de la CA restent sur le contrôleur Ansible.
+gitlab_ca_dir: "{{ lookup('ansible.builtin.env', 'HOME') }}/homelab-ca"
+gitlab_ca_name: "Homelab CA"
+gitlab_ca_trust_path: /usr/local/share/ca-certificates/homelab-ca.crt
+gitlab_cert_validity: "+825d"

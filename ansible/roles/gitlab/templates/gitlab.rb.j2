@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+external_url '{{ gitlab_external_url }}'
+
+# HTTPS avec un certificat signé par la CA interne (pas de Let's Encrypt)
+letsencrypt['enable'] = false
+nginx['redirect_http_to_https'] = true
+nginx['ssl_certificate'] = "/etc/gitlab/ssl/{{ gitlab_hostname }}.crt"
+nginx['ssl_certificate_key'] = "/etc/gitlab/ssl/{{ gitlab_hostname }}.key"
+
+# Environnement à mémoire limitée
+puma['worker_processes'] = {{ gitlab_puma_worker_processes }}
+sidekiq['concurrency'] = {{ gitlab_sidekiq_concurrency }}
+prometheus_monitoring['enable'] = false

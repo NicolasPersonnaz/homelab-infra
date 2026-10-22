@@ -28,7 +28,7 @@ flowchart LR
 | `terraform.tfvars.example` | Exemple de valeurs. Copier en `terraform.tfvars` (non versionné) |
 | `.terraform.lock.hcl` | Version et empreintes du fournisseur, versionnés pour la reproductibilité |
 
-Variables : `proxmox_endpoint`, `node_name`, `template_vmid`, `ssh_public_key`, `vm_ip`, `gateway`.
+Variables : `proxmox_endpoint`, `node_name`, `template_vmid`, `ssh_public_key`, `gateway`, `dns_servers`, `datastore_id`, `vms`.
 
 ## Mise en place
 
@@ -117,6 +117,12 @@ Temps passé : [À COMPLÉTER : temps total, template et droits Proxmox compris]
 | État Terraform local (`terraform.tfstate`, non versionné) | Backend distant chiffré |
 | Pas d'agent invité dans le template (`agent.enabled = false`) | Installer `qemu-guest-agent` dans l'image et l'activer |
 | Une seule VM, IP saisie à la main | Plusieurs VM, génération de l'inventaire Ansible |
+
+## Évolution : plusieurs VM et jeton chargé par script
+
+- `main.tf` crée une VM par entrée de `var.vms` (`for_each`). Chaque entrée fixe l'IP, les vCPU, la mémoire et la taille du disque (`disk.size` agrandit le disque cloné). Les serveurs DNS sont passés par `dns_servers`.
+- `tf.sh` lit le jeton dans `/root/.config/homelab/proxmox-token` (root, mode `600`, hors du dépôt) et l'exporte dans `PROXMOX_VE_API_TOKEN` : `sudo ./tf.sh plan`. Le script refuse de tourner sans root ou si le fichier n'est pas en `600`.
+- Résultat vérifié pour la VM `gitlab` : `Plan: 1 to add`, puis `Creation complete after 9s`. Détails dans [ansible/roles/gitlab/README.md](../ansible/roles/gitlab/README.md).
 
 Suite prévue : lancer le playbook Ansible sur la VM créée, puis installer l'agent Teleport au premier démarrage avec cloud-init.
 

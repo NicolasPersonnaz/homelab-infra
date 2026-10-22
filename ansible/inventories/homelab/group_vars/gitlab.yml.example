@@ -1,0 +1,4 @@
+---
+# Copier en gitlab.yml (non versionné) et adapter.
+gitlab_hostname: gitlab.example.lan
+gitlab_ip: 192.168.1.61
