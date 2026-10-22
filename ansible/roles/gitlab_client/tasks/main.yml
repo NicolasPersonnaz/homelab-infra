@@ -1,0 +1,15 @@
+---
+- name: Résolution locale du nom GitLab
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '\s{{ gitlab_client_hostname | regex_escape }}$'
+    line: "{{ gitlab_client_ip }} {{ gitlab_client_hostname }}"
+
+- name: Faire confiance à la CA interne
+  ansible.builtin.copy:
+    src: "{{ gitlab_client_ca_src }}"
+    dest: "{{ gitlab_client_ca_dest }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Mettre à jour les CA du système

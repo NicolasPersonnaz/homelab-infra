@@ -1,0 +1,12 @@
+---
+# Changer le Dockerfile = incrémenter ci_image_version (et l'image dans .gitlab-ci.yml).
+ci_image_name: homelab-ci
+ci_image_version: "1"
+ci_image_dir: /opt/homelab-ci
+# Image de base épinglée par empreinte : un tag peut changer, pas une empreinte.
+ci_image_base: "debian:trixie-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad"
+ci_image_terraform_version: "1.16.6-1"
+ci_image_teleport_version: "18.7.6"
+ci_image_gitleaks_version: "8.30.1"
+ci_image_gitleaks_sha256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+ci_image_semgrep_version: "1.182.1"

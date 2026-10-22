@@ -1,0 +1,24 @@
+---
+- name: Dossier de construction de l'image CI
+  ansible.builtin.file:
+    path: "{{ ci_image_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Dockerfile de l'image CI
+  ansible.builtin.template:
+    src: Dockerfile.j2
+    dest: "{{ ci_image_dir }}/Dockerfile"
+    owner: root
+    group: root
+    mode: "0644"
+
+# Construite localement : pas de registre, le runner l'utilise en « if-not-present ».
+- name: Construire l'image CI (uniquement si cette version n'existe pas)
+  community.docker.docker_image_build:
+    name: "{{ ci_image_name }}"
+    tag: "{{ ci_image_version }}"
+    path: "{{ ci_image_dir }}"
+    rebuild: never

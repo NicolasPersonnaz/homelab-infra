@@ -13,8 +13,10 @@ resource "proxmox_virtual_environment_vm" "vm" {
     enabled = false
   }
 
+  # "host" expose le vrai processeur (x86-64-v2+, requis par semgrep). Pas de migration à chaud : un seul hôte.
   cpu {
     cores = each.value.cores
+    type  = "host"
   }
 
   memory {

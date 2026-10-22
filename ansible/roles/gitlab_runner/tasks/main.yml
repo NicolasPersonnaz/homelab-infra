@@ -28,7 +28,7 @@
 
 - name: Installer Docker Engine
   ansible.builtin.apt:
-    name: [docker-ce, docker-ce-cli, containerd.io]
+    name: [docker-ce, docker-ce-cli, containerd.io, docker-buildx-plugin]
     state: present
     update_cache: true
 
@@ -103,11 +103,23 @@
       - "{{ gitlab_runner_docker_image }}"
       - --docker-extra-hosts
       - "{{ gitlab_runner_extra_hosts }}"
+      - --docker-pull-policy
+      - if-not-present
   environment:
     CI_SERVER_TOKEN: "{{ gitlab_runner_token }}"
   when: gitlab_runner_registered.rc != 0 and (gitlab_runner_token | length) > 0
   changed_when: true
   no_log: true
+
+# Pour un runner déjà enregistré : utiliser les images locales (image CI) avant Docker Hub.
+- name: Politique de téléchargement des images
+  ansible.builtin.lineinfile:
+    path: /etc/gitlab-runner/config.toml
+    regexp: '^\s*pull_policy\s*='
+    line: '    pull_policy = ["if-not-present"]'
+    insertafter: '^\s*\[runners\.docker\]'
+  when: gitlab_runner_registered.rc == 0 or (gitlab_runner_token | length) > 0
+  notify: Redémarrer gitlab-runner
 
 - name: Activer le service gitlab-runner
   ansible.builtin.systemd:

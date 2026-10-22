@@ -1,0 +1,6 @@
+---
+- name: VM de gestion, cliente de GitLab
+  hosts: gestion
+  become: true
+  roles:
+    - gitlab_client

@@ -1,0 +1,6 @@
+---
+# Valeurs reprises de l'hôte gitlab de l'inventaire (group_vars/gitlab.yml)
+gitlab_client_hostname: "{{ hostvars[groups['gitlab'][0]]['gitlab_hostname'] }}"
+gitlab_client_ip: "{{ hostvars[groups['gitlab'][0]]['gitlab_ip'] }}"
+gitlab_client_ca_src: "{{ lookup('ansible.builtin.env', 'HOME') }}/homelab-ca/ca.crt"
+gitlab_client_ca_dest: /usr/local/share/ca-certificates/homelab-ca.crt

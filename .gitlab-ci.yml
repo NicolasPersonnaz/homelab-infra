@@ -1,0 +1,47 @@
+# Image construite par le rôle Ansible ci_image sur la VM gitlab (pas de registre).
+default:
+  image: homelab-ci:1
+
+# Un seul pipeline par push : celui de la merge request s'il y en a une, sinon celui de la branche.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+
+stages:
+  - check
+  - security
+
+# ---------------------------------------------------
+# CHECK : qualité du code d'infrastructure
+# ---------------------------------------------------
+ansible-lint:
+  stage: check
+  script:
+    - cd ansible
+    - ansible-lint --profile production
+
+terraform-validate:
+  stage: check
+  script:
+    - cd terraform
+    - terraform fmt -check -recursive -diff
+    - terraform init -backend=false -input=false
+    - terraform validate
+
+# ---------------------------------------------------
+# SECURITY : secrets et code
+# ---------------------------------------------------
+gitleaks:
+  stage: security
+  variables:
+    GIT_DEPTH: "0"   # tout l'historique : un secret supprimé reste dans Git
+  script:
+    - gitleaks git --redact --verbose .
+
+semgrep:
+  stage: security
+  script:
+    - semgrep scan --config p/default --metrics=off --error .
