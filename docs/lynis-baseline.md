@@ -43,4 +43,16 @@ Mesure « avant » sur la VM `lynis-test`, créée par le pipeline avec la **bas
 | Partitions | FILE-6310 ×2 | `/home` et `/var` séparés : décision au niveau du template, pas d'Ansible |
 | Divers | FILE-7524, NAME-4028, KRNL-5788, TOOL-5002, LYNIS | Permissions de fichiers, domaine DNS, lien `/vmlinuz` absent (image cloud), version de Lynis du paquet Debian |
 
+## Import dans DefectDojo
+
+Le rapport brut est importé avec le parseur natif **« Lynis Scan »** de DefectDojo (avertissement → *Medium*, suggestion → *Low*), dans le produit `lynis-test` (type `Homelab`), engagement « Audit Lynis de référence (avant durcissement) ».
+
+- Import par l'API (`/api/v2/import-scan/`, `auto_create_context=true`), lancé **sur la VM defectdojo** : jeton d'API du compte admin obtenu par Django (`manage.py shell`), jamais affiché, en-tête passé à `curl` par l'entrée standard (`curl -K -`) pour ne pas apparaître dans la liste des processus. Aucun mot de passe utilisé.
+- Résultat vérifié : HTTP `201`, **46 failles** (2 *Medium*, 44 *Low*), identique à l'audit.
+- PKGS-7388 marqué **faux positif** dans DefectDojo, avec une note qui donne la preuve (`false_p = true`, `active = false`).
+
+Piège : l'import refuse l'extension `.dat` (`File extension "dat" is not allowed`) alors que le parseur Lynis attend ce fichier. Le contenu est identique : il suffit de l'envoyer sous un nom en `.txt` (`-F "file=@lynis-report.dat;filename=lynis-report.txt"`).
+
+## Lecture
+
 Certaines suggestions sont des faux positifs ou des compromis à documenter plutôt qu'à suivre, par exemple le changement de port SSH ou `fail2ban` alors que SSH n'est ouvert qu'à `gestion`.
