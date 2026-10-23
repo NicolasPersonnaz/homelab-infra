@@ -124,7 +124,14 @@ Temps passé : [À COMPLÉTER : temps total, template et droits Proxmox compris]
 - `tf.sh` lit le jeton dans `/root/.config/homelab/proxmox-token` (root, mode `600`, hors du dépôt) et l'exporte dans `PROXMOX_VE_API_TOKEN` : `sudo ./tf.sh plan`. Le script refuse de tourner sans root ou si le fichier n'est pas en `600`.
 - Résultat vérifié pour la VM `gitlab` : `Plan: 1 to add`, puis `Creation complete after 9s`. Détails dans [ansible/roles/gitlab/README.md](../ansible/roles/gitlab/README.md).
 
-Suite prévue : lancer le playbook Ansible sur la VM créée, puis installer l'agent Teleport au premier démarrage avec cloud-init.
+## Évolution : état chez GitLab, inventaire versionné, exécution en CI
+
+- L'inventaire des VM est dans `vms.tf` (valeur par défaut de `var.vms`), versionné. Ne pas redéfinir `vms` dans `terraform.tfvars`.
+- L'état est hébergé par GitLab (`backend "http" {}`, configuré par les variables `TF_HTTP_*` dans `ci/common.sh`). L'état local de `gestion` y a été migré (`terraform init -migrate-state`).
+- `plan` et `apply` tournent dans la CI (jobs `terraform-plan` et `deploy`) : voir [ansible/roles/gitlab/README.md](../ansible/roles/gitlab/README.md). `tf.sh` reste utilisable sur `gestion` à condition de fournir aussi les variables `TF_HTTP_*`.
+- `cpu.type = "host"`, `on_boot = true`, et `lifecycle { ignore_changes = [initialization[0].user_account] }` : la clé SSH jetable de la CI n'est prise en compte qu'à la création.
+
+Réalisé depuis : la CI crée les VM, les fait rejoindre Teleport (agent installé par Ansible, pas par cloud-init) et les configure à travers Teleport.
 
 ## Environnement
 

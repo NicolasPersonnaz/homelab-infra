@@ -30,6 +30,8 @@ Pièges : un clone duplique les identités (machine-id, clés SSH de l'hôte) ; 
 | teleport_ci | Sur la VM de gestion : génère hors du dépôt le rôle, le bot et le jeton Teleport de la CI (jonction `gitlab`, `static_jwks`), et les jetons `node` de courte durée (`teleport-node-token.yml`) |
 | teleport_node | Agent Teleport épinglé sur un nœud, étiquettes, jonction par jeton lu depuis un fichier puis supprimé |
 
+Playbooks lancés par la CI : `bootstrap.yml` (VM neuves, SSH direct avec clé jetable, jonction Teleport) puis `homelab.yml` (toutes les VM sauf `gitlab`, à travers Teleport). Voir `ci/deploy.sh`.
+
 ## Utilisation
 
     cd ansible

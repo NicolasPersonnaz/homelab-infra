@@ -127,6 +127,32 @@ Résultat vérifié :
 - SSH direct depuis un poste du LAN : `User ansible from <ip> not allowed because not listed in AllowUsers`.
 - Pipeline n°7, job `teleport-check` : le bot ne voit que `gitlab` (pas les autres nœuds du cluster) et `tsh ssh ansible@env=homelab` répond `gitlab`, `ansible`, `sudo OK`.
 
+## Onboarding automatique des nouvelles VM (job `deploy`)
+
+Ajouter une entrée dans `terraform/vms.tf` puis lancer le job manuel `deploy` (sur `main` protégée) suffit : la VM est créée, rejoint Teleport et est configurée, **sans aucune action ni secret stocké**. `ci/deploy.sh` :
+
+| Phase | Ce qui se passe | Secret utilisé |
+|---|---|---|
+| 1 | `tbot --oneshot`, jonction `gitlab` (OIDC) | aucun : jeton OIDC signé par GitLab |
+| 2 | Clé SSH ed25519 générée dans le conteneur | jetable, détruite avec le job |
+| 3 | `terraform apply`, état chez GitLab (backend `http`, `CI_JOB_TOKEN`) ; la clé publique jetable est injectée par cloud-init à la création | `TERRAFORM_TOKEN` (variable masquée et protégée) |
+| 4 | VM de Terraform absentes de `tsh ls` (+ `REPLACE_VMS`) = VM neuves | |
+| 5 | `tctl tokens add --type=node --ttl=15m` par le bot, valeur écrite directement dans un fichier | jeton de 15 min, jamais affiché |
+| 6 | `bootstrap.yml` en SSH direct avec la clé jetable : uniquement l'agent Teleport | |
+| 7 | `homelab.yml` **à travers Teleport** : `common`, `users`, `ssh` (SSH direct limité à `gestion`), `teleport_node`, retrait de la clé jetable | identité du bot (1 h) |
+| 8 | Second passage : échec du job si une VM affiche `changed` > 0 | |
+
+Le bot porte deux rôles : `homelab-ci-deployer` (connexion `ansible` sur `env=homelab`) et `homelab-ci-onboarder` (`token` / `create` uniquement). Le plan (`terraform-plan`) tourne seul ; le déploiement est un bouton manuel, avec `resource_group` pour interdire deux déploiements simultanés. `REPLACE_VMS=<nom>` (variable saisie au lancement) fait recréer une VM.
+
+Résultat vérifié :
+- Pipeline n°11, `terraform-plan` : `Plan: 1 to add, 0 to change, 0 to destroy` (seulement `defectdojo` ; `gitlab` intacte grâce à la migration de l'état et à `ignore_changes`).
+- Job `deploy` n°64 (`REPLACE_VMS=defectdojo`, 230 s) : destruction et recréation, `VM neuves : defectdojo`, amorçage `ok=22 changed=12`, `defectdojo joignable par Teleport`, configuration `changed=7`, second passage `changed=0`.
+- Sur la VM : `hostname=defectdojo`, nœud `defectdojo ⟵ Tunnel env=homelab`, `allowusers *@<ip-gestion>`, jeton de jonction supprimé. SSH direct depuis un poste : refusé.
+- Pipeline n°14 (aucune VM neuve) : tous les jobs verts, `Apply complete! Resources: 0 added, 0 changed, 0 destroyed`, clé jetable retirée (`changed=1`) puis `changed=0`.
+- `teleport-check` : le bot exécute une commande sur `gitlab` et `defectdojo` (`2 host(s) succeeded`).
+
+Migration de l'état local vers GitLab : jeton d'accès GitLab temporaire (1 jour), transmis de machine à machine sans affichage, `terraform init -migrate-state`, vérification (`proxmox_virtual_environment_vm.vm["gitlab"]` présent), puis jeton révoqué et copies supprimées.
+
 ## Pièges rencontrés
 
 | Symptôme | Cause | Solution |
@@ -137,6 +163,12 @@ Résultat vérifié :
 | `flush_handlers` trop tôt déclenche `gitlab-ctl reconfigure` avant l'installation | Les handlers en attente sont tous exécutés | Ne vider les handlers qu'à un moment où seul celui de la CA peut être en attente |
 | Après un redémarrage, jobs bloqués en `pending`, runner en `lookup gitlab.<domaine> ... no such host` | cloud-init régénère `/etc/hosts` à chaque démarrage : Proxmox impose `manage_etc_hosts: true` dans ses données cloud-init, qui l'emportent sur `cloud.cfg.d` | La ligne est aussi écrite dans `/etc/cloud/templates/hosts.debian.tmpl`. Vérifié par un redémarrage : ligne présente, aucune erreur DNS, jobs repris |
 | Pipeline refusé : `script config should be a string or a nested array of strings` | Une ligne de script contenant `: ` (deux-points + espace) est lue comme une clé YAML | Bloc littéral `- \|`. Valider avant de pousser avec `Gitlab::Ci::Lint` (ou l'éditeur de pipeline) |
+| `access denied to perform action "update" on "token"` | `tctl create` fait un `UpsertToken` (création **ou** mise à jour) | `tctl tokens add` (`CreateToken`) : le droit `create` suffit, sans pouvoir modifier les jetons existants |
+| `cloud-init status --wait` en échec alors qu'il affiche `status: done` | Code retour 2 = terminé avec des erreurs récupérables (avertissements) | Accepter les codes 0 et 2 |
+| Après un déploiement interrompu, la VM n'accepte plus la clé du job suivant | La clé jetable du job précédent a disparu avec son conteneur | `REPLACE_VMS=<nom>` : recréation explicite, jamais automatique (un agent arrêté ne doit pas faire détruire une VM) |
+| `Connection closed by UNKNOWN port 65535` juste après l'amorçage | Le handler redémarre l'agent : Ansible se connectait avant le retour du tunnel | Attente active par `tsh ssh` avant la configuration |
+| VM recréée vue comme « déjà jointe », puis `timed out during banner exchange` | Teleport garde l'enregistrement d'un nœud détruit jusqu'à l'expiration de son annonce (≤ 10 min) : Ansible visait un nœud fantôme | Une VM de `REPLACE_VMS` est toujours amorcée ; attente jusqu'à 12 min (nom ambigu entre-temps). Diagnostic : `tsh ssh` marchait sur `gitlab` mais pas sur `defectdojo`, VM redémarrée récemment, agent absent |
+| Écriture de `*.tfvars` refusée | Réglages de permissions (les `tfvars` contiennent les valeurs réelles) | Inventaire des VM dans `vms.tf` (valeur par défaut de `var.vms`) |
 | semgrep : `CPU ISA level is lower than required` | Processeur émulé `qemu64` (défaut du fournisseur) limité à x86-64-v1 | `cpu.type = "host"` dans Terraform (redémarrage de la VM) |
 | Les jobs ne résoudraient pas `gitlab.<domaine>` | Les conteneurs n'héritent pas de `/etc/hosts` de l'hôte | `--docker-extra-hosts` à l'enregistrement |
 
@@ -153,4 +185,9 @@ Résultat vérifié :
 | Pas de sauvegarde | `gitlab-backup create` planifié + copie de `/etc/gitlab/gitlab-secrets.json` hors de la VM |
 | Les clés de signature GitLab sont copiées dans le jeton Teleport (`static_jwks`) : si GitLab les change, la jonction échoue | Relancer `gestion.yml` puis `tctl create -f token.yaml` |
 
-Suite prévue : onboarding automatique des nouvelles VM par le pipeline (état Terraform chez GitLab, `plan` + `apply` en CI, jeton `node` créé par le bot).
+| Le bot peut créer des jetons de jonction de **n'importe quel type** (la règle RBAC `token/create` ne filtre pas le type) : quiconque peut pousser sur `main` protégée pourrait en abuser | Compromis assumé (un seul administrateur). Pistes : approbation obligatoire du job, ou méthode de jonction sans jeton |
+| Première connexion SSH d'amorçage en `StrictHostKeyChecking=accept-new` (confiance au premier usage, sur le LAN) | Récupérer la clé d'hôte par l'API Proxmox ou la console |
+| Terraform ne tourne plus depuis `gestion` sans identifiants pour l'état GitLab | Jeton GitLab dédié lu par `tf.sh`, ou passer uniquement par la CI |
+| `gitlab` est exclue de `homelab.yml` : elle reste configurée depuis `gestion` (`gitlab.yml`) | Variables de `gitlab.yml` en variables CI pour la gérer aussi par le pipeline |
+
+Suite possible : installer DefectDojo sur la VM `defectdojo` par un rôle Ansible déployé par le pipeline.
