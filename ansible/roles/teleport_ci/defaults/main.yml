@@ -11,3 +11,5 @@ teleport_ci_ref: main
 teleport_ci_logins: [ansible]
 teleport_ci_node_labels:
   env: homelab
+# Durée de vie du jeton de jonction des nœuds (secondes)
+teleport_ci_node_token_ttl: 900

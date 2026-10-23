@@ -80,3 +80,5 @@ teleport-check:
       EOF
     - tbot start -c tbot.yaml
     - tsh -i /tmp/tbot/identity --proxy="$TELEPORT_PROXY" ls
+    # Commande exécutée par Teleport sur tous les nœuds env=homelab (pas de SSH direct)
+    - tsh -i /tmp/tbot/identity --proxy="$TELEPORT_PROXY" ssh ansible@env=homelab 'hostname; id -un; sudo -n true && echo sudo OK'

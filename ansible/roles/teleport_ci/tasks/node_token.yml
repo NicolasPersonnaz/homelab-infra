@@ -1,0 +1,27 @@
+---
+# Jeton de jonction « node » à usage court : son nom est le secret.
+# Il n'est jamais affiché : on l'applique par un tube vers « tctl create ».
+- name: Dossier des ressources Teleport (hors du dépôt)
+  ansible.builtin.file:
+    path: "{{ teleport_ci_output_dir }}"
+    state: directory
+    mode: "0700"
+
+- name: Générer la valeur du jeton
+  ansible.builtin.set_fact:
+    teleport_ci_node_token: "{{ lookup('community.general.random_string', length=40, special=false) }}"
+  no_log: true
+
+- name: Fichier du jeton (lu par le rôle teleport_node)
+  ansible.builtin.copy:
+    content: "{{ teleport_ci_node_token }}"
+    dest: "{{ teleport_ci_output_dir }}/node-token"
+    mode: "0600"
+  no_log: true
+
+- name: Ressource Teleport du jeton, expiration en secondes {{ teleport_ci_node_token_ttl }}
+  ansible.builtin.template:
+    src: node-token.yaml.j2
+    dest: "{{ teleport_ci_output_dir }}/node-token.yaml"
+    mode: "0600"
+  no_log: true

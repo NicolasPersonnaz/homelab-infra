@@ -1,0 +1,20 @@
+# {{ ansible_managed }}
+version: v3
+teleport:
+  nodename: {{ inventory_hostname }}
+  data_dir: {{ teleport_node_data_dir }}
+  proxy_server: {{ teleport_node_proxy_server }}
+  join_params:
+    method: token
+    # Chemin d'un fichier : le jeton n'apparaît ni ici ni sur une ligne de commande.
+    token_name: {{ teleport_node_data_dir }}/join-token
+  log:
+    output: stderr
+    severity: INFO
+auth_service:
+  enabled: false
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: true
+  labels: {{ teleport_node_labels | to_json }}

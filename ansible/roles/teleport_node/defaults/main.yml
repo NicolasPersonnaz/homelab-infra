@@ -1,0 +1,13 @@
+---
+teleport_node_version: "18.7.6"
+teleport_node_apt_channel: "stable/v18"
+# Valeurs reprises des variables du bot de la VM de gestion (group_vars/gestion.yml)
+teleport_node_proxy_server: "{{ hostvars[groups['gestion'][0]]['tbot_proxy_server'] }}"
+teleport_node_tunnel_host: "{{ hostvars[groups['gestion'][0]]['tbot_tunnel_host'] }}"
+teleport_node_tunnel_ip: "{{ hostvars[groups['gestion'][0]]['tbot_tunnel_ip'] }}"
+# Le bot CI n'a accès qu'aux nœuds qui portent ces étiquettes.
+teleport_node_labels:
+  env: homelab
+teleport_node_data_dir: /var/lib/teleport
+# Jeton de jonction à courte durée, sur le contrôleur (créé par teleport-node-token.yml).
+teleport_node_token_src: "{{ lookup('ansible.builtin.env', 'HOME') }}/homelab-teleport/node-token"

@@ -2,3 +2,4 @@
 ssh_permit_root_login: "no"
 ssh_max_auth_tries: 4
 ssh_login_grace_time: 30
+ssh_allowed_sources: []   # vide = pas de restriction ; ex. ["192.168.1.42"]

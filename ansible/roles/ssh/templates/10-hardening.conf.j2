@@ -5,3 +5,8 @@ LoginGraceTime {{ ssh_login_grace_time }}
 X11Forwarding no
 ClientAliveInterval 300
 ClientAliveCountMax 2
+{% if ssh_allowed_sources %}
+# SSH direct réservé à ces adresses (secours) : l'accès normal passe par Teleport
+AllowUsers {% for source in ssh_allowed_sources %}*@{{ source }}{{ ' ' if not loop.last }}{% endfor %}
+
+{% endif %}

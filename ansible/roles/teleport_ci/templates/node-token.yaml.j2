@@ -1,0 +1,9 @@
+# {{ ansible_managed }}
+kind: token
+version: v2
+metadata:
+  name: {{ teleport_ci_node_token }}
+  expires: "{{ '%Y-%m-%dT%H:%M:%SZ' | strftime(ansible_date_time.epoch | int + teleport_ci_node_token_ttl, utc=true) }}"
+spec:
+  roles: [Node]
+  join_method: token

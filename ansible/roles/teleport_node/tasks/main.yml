@@ -1,0 +1,75 @@
+---
+- name: Dossier des clés APT
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Clé du dépôt Teleport
+  ansible.builtin.get_url:
+    url: https://apt.releases.teleport.dev/gpg
+    dest: /etc/apt/keyrings/teleport.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Dépôt Teleport
+  ansible.builtin.deb822_repository:
+    name: teleport
+    types: deb
+    uris: "https://apt.releases.teleport.dev/{{ ansible_distribution | lower }}"
+    suites: "{{ ansible_distribution_release }}"
+    components: "{{ teleport_node_apt_channel }}"
+    signed_by: /etc/apt/keyrings/teleport.asc
+    state: present
+
+- name: Installer Teleport (version épinglée, celle du cluster)
+  ansible.builtin.apt:
+    name: "teleport={{ teleport_node_version }}"
+    state: present
+    update_cache: true
+    allow_change_held_packages: true
+
+- name: Bloquer les mises à jour automatiques de Teleport
+  ansible.builtin.dpkg_selections:
+    name: teleport
+    selection: hold
+
+- name: Modèle cloud-init de /etc/hosts présent ?
+  ansible.builtin.stat:
+    path: /etc/cloud/templates/hosts.debian.tmpl
+  register: teleport_node_hosts_template
+
+# Le tunnel est en DNS seul : depuis le LAN, il doit pointer vers l'adresse interne de Teleport.
+- name: Résolution locale du tunnel Teleport
+  ansible.builtin.lineinfile:
+    path: "{{ item }}"
+    regexp: '\s{{ teleport_node_tunnel_host | regex_escape }}$'
+    line: "{{ teleport_node_tunnel_ip }} {{ teleport_node_tunnel_host }}"
+  loop: "{{ ['/etc/hosts'] + (['/etc/cloud/templates/hosts.debian.tmpl'] if teleport_node_hosts_template.stat.exists else []) }}"
+
+- name: Configuration de l'agent Teleport
+  ansible.builtin.template:
+    src: teleport.yaml.j2
+    dest: /etc/teleport.yaml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Redémarrer teleport
+
+- name: Le nœud a-t-il déjà rejoint le cluster ?
+  ansible.builtin.stat:
+    path: "{{ teleport_node_data_dir }}/host_uuid"
+  register: teleport_node_joined
+
+- name: Importer la jonction initiale
+  ansible.builtin.include_tasks: join.yml
+  when: not teleport_node_joined.stat.exists
+
+- name: Activer l'agent Teleport
+  ansible.builtin.systemd:
+    name: teleport
+    enabled: true
+    state: started

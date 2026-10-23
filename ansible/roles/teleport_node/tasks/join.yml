@@ -1,0 +1,52 @@
+---
+- name: Jeton de jonction disponible sur le contrôleur ?
+  ansible.builtin.stat:
+    path: "{{ teleport_node_token_src }}"
+  delegate_to: localhost
+  become: false
+  register: teleport_node_token_stat
+
+- name: Refuser de continuer sans jeton
+  ansible.builtin.fail:
+    msg: "Nœud pas encore joint et aucun jeton : lancer d'abord teleport-node-token.yml puis l'appliquer avec tctl."
+  when: not teleport_node_token_stat.stat.exists
+
+- name: Dossier de données de Teleport
+  ansible.builtin.file:
+    path: "{{ teleport_node_data_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Déposer le jeton de jonction
+  ansible.builtin.copy:
+    src: "{{ teleport_node_token_src }}"
+    dest: "{{ teleport_node_data_dir }}/join-token"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Démarrer l'agent pour la jonction
+  ansible.builtin.systemd:
+    name: teleport
+    enabled: true
+    state: restarted
+
+- name: Attendre l'identité du nœud
+  ansible.builtin.wait_for:
+    path: "{{ teleport_node_data_dir }}/host_uuid"
+    timeout: 90
+
+- name: Supprimer le jeton consommé (nœud)
+  ansible.builtin.file:
+    path: "{{ teleport_node_data_dir }}/join-token"
+    state: absent
+
+- name: Supprimer le jeton consommé (contrôleur)
+  ansible.builtin.file:
+    path: "{{ teleport_node_token_src }}"
+    state: absent
+  delegate_to: localhost
+  become: false

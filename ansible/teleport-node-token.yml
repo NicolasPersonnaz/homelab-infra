@@ -1,0 +1,11 @@
+---
+# Génère un jeton de jonction « node » de courte durée, à appliquer ensuite :
+#   tsh ssh root@gestion 'cat ~/homelab-teleport/node-token.yaml' | tctl create
+- name: Jeton de jonction Teleport pour un nouveau nœud
+  hosts: gestion
+  become: true
+  tasks:
+    - name: Générer le jeton
+      ansible.builtin.include_role:
+        name: teleport_ci
+        tasks_from: node_token
