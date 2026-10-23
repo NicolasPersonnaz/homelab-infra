@@ -71,10 +71,12 @@ done
 
 echo "== 4. VM pas encore enregistrées dans Teleport"
 tsh_bot ls --format=names > "$work/joined.txt"
-mapfile -t new_vms < <(python3 - "$work/vms.json" "$work/joined.txt" <<'PY'
+# Une VM recréée (REPLACE_VMS) est toujours neuve : Teleport garde l'enregistrement de
+# l'ancienne quelques minutes, ce qui la ferait passer à tort pour déjà jointe.
+mapfile -t new_vms < <(python3 - "$work/vms.json" "$work/joined.txt" ${REPLACE_VMS:-} <<'PY'
 import json, sys
 vms = json.load(open(sys.argv[1]))
-joined = set(open(sys.argv[2]).read().split())
+joined = set(open(sys.argv[2]).read().split()) - set(sys.argv[3:])
 for name in sorted(vms):
     if name not in joined:
         print(name)
@@ -110,13 +112,15 @@ PY
     -e "teleport_node_token_src=$work/node-token" \
     "${teleport_vars[@]}"
 
-  # L'agent vient de redémarrer (handler) : attendre que son tunnel soit rétabli.
+  # Attendre que chaque VM soit joignable par Teleport : l'agent vient de redémarrer (handler)
+  # et, après un REPLACE_VMS, le nom reste ambigu tant que l'ancien enregistrement n'a pas
+  # expiré (annonce de 10 minutes au plus).
   for vm in "${new_vms[@]}"; do
-    for _ in $(seq 1 30); do
+    for _ in $(seq 1 150); do
       tsh_bot ssh "ansible@$vm" true 2>/dev/null && { echo "$vm joignable par Teleport"; continue 2; }
       sleep 5
     done
-    echo "ERREUR : $vm injoignable par Teleport après 150 s"
+    echo "ERREUR : $vm injoignable par Teleport après 12 minutes"
     exit 1
   done
 fi
