@@ -4,3 +4,4 @@
   become: true
   roles:
     - gitlab_client
+    - teleport_ci

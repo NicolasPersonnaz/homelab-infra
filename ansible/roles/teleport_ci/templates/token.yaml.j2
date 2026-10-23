@@ -1,0 +1,19 @@
+# {{ ansible_managed }}
+# Jonction sans secret : le job présente son jeton OIDC GitLab, Teleport vérifie
+# la signature (static_jwks) et les règles ci-dessous.
+kind: token
+version: v2
+metadata:
+  name: {{ teleport_ci_token_name }}
+spec:
+  roles: [Bot]
+  join_method: gitlab
+  bot_name: {{ teleport_ci_bot_name }}
+  gitlab:
+    domain: {{ teleport_ci_gitlab_domain }}
+    static_jwks: {{ teleport_ci_jwks.content | to_json }}
+    allow:
+      - project_path: {{ teleport_ci_project_path }}
+        ref: {{ teleport_ci_ref }}
+        ref_type: branch
+        ref_protected: true

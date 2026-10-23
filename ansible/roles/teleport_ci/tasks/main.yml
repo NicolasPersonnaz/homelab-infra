@@ -1,0 +1,23 @@
+---
+- name: Dossier des ressources Teleport (hors du dépôt)
+  ansible.builtin.file:
+    path: "{{ teleport_ci_output_dir }}"
+    state: directory
+    mode: "0700"
+
+# static_jwks : l'Auth Service vérifie les jetons GitLab sans joindre GitLab ni connaître la CA interne.
+- name: Clés publiques de signature de GitLab (JWKS)
+  ansible.builtin.uri:
+    url: "https://{{ teleport_ci_gitlab_domain }}/oauth/discovery/keys"
+    return_content: true
+  register: teleport_ci_jwks
+
+- name: Générer les ressources Teleport
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ teleport_ci_output_dir }}/{{ item }}"
+    mode: "0600"
+  loop:
+    - role.yaml
+    - bot.yaml
+    - token.yaml

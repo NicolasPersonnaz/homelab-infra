@@ -1,0 +1,7 @@
+# {{ ansible_managed }}
+kind: bot
+version: v1
+metadata:
+  name: {{ teleport_ci_bot_name }}
+spec:
+  roles: [{{ teleport_ci_role_name }}]

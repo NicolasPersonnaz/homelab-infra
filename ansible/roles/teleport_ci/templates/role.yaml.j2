@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+# Droits du bot CI : connexion SSH en {{ teleport_ci_logins | join(', ') }} sur les nœuds étiquetés, rien d'autre.
+kind: role
+version: v7
+metadata:
+  name: {{ teleport_ci_role_name }}
+spec:
+  allow:
+    logins: {{ teleport_ci_logins | to_json }}
+    node_labels: {{ teleport_ci_node_labels | to_json }}
+  options:
+    max_session_ttl: 1h

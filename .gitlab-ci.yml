@@ -13,6 +13,7 @@ workflow:
 stages:
   - check
   - security
+  - deploy
 
 # ---------------------------------------------------
 # CHECK : qualité du code d'infrastructure
@@ -45,3 +46,35 @@ semgrep:
   stage: security
   script:
     - semgrep scan --config p/default --metrics=off --error .
+
+# ---------------------------------------------------
+# DEPLOY : identité Teleport sans secret (jonction gitlab / OIDC)
+# ---------------------------------------------------
+# TELEPORT_PROXY et TELEPORT_CLUSTER : variables CI protégées du projet (pas de domaine dans le dépôt).
+teleport-check:
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"
+  id_tokens:
+    TBOT_GITLAB_JWT:
+      aud: $TELEPORT_CLUSTER
+  script:
+    - test -n "$TELEPORT_PROXY" || { echo "ERREUR : TELEPORT_PROXY vide"; exit 1; }
+    - |
+      cat > tbot.yaml <<EOF
+      version: v2
+      proxy_server: ${TELEPORT_PROXY}
+      oneshot: true
+      onboarding:
+        join_method: gitlab
+        token: homelab-ci-gitlab
+      storage:
+        type: memory
+      outputs:
+        - type: identity
+          destination:
+            type: directory
+            path: /tmp/tbot
+      EOF
+    - tbot start -c tbot.yaml
+    - tsh -i /tmp/tbot/identity --proxy="$TELEPORT_PROXY" ls
