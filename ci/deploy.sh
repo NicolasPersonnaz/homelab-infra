@@ -109,6 +109,16 @@ PY
     -e "ansible_ssh_common_args='-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$work/known_hosts'" \
     -e "teleport_node_token_src=$work/node-token" \
     "${teleport_vars[@]}"
+
+  # L'agent vient de redémarrer (handler) : attendre que son tunnel soit rétabli.
+  for vm in "${new_vms[@]}"; do
+    for _ in $(seq 1 30); do
+      tsh_bot ssh "ansible@$vm" true 2>/dev/null && { echo "$vm joignable par Teleport"; continue 2; }
+      sleep 5
+    done
+    echo "ERREUR : $vm injoignable par Teleport après 150 s"
+    exit 1
+  done
 fi
 
 echo "== 7. Configuration de toutes les VM à travers Teleport"
