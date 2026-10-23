@@ -1,0 +1,137 @@
+---
+- name: Vérifier qu'une source SSH est autorisée (sinon le pare-feu couperait l'accès de secours)
+  ansible.builtin.assert:
+    that: hardening_ssh_sources | length > 0
+    fail_msg: "hardening_ssh_sources est vide : l'accès SSH direct de secours serait bloqué"
+
+- name: Installer les outils de durcissement et d'audit
+  ansible.builtin.apt:
+    name: "{{ hardening_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# --- SSH ---
+- name: Durcissement complémentaire de sshd
+  ansible.builtin.template:
+    src: sshd-durcissement.conf.j2
+    dest: /etc/ssh/sshd_config.d/05-durcissement.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "/usr/sbin/sshd -t -f %s"
+  notify: Recharger sshd
+
+# --- Pare-feu (FIRE-4512) ---
+- name: Règles du pare-feu nftables
+  ansible.builtin.template:
+    src: nftables.conf.j2
+    dest: /etc/nftables.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "/usr/sbin/nft -c -f %s"
+  notify: Recharger le pare-feu
+
+- name: Activer le pare-feu au démarrage
+  ansible.builtin.systemd:
+    name: nftables
+    enabled: true
+    state: started
+
+# --- Noyau ---
+- name: Paramètres noyau et réseau
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/90-durcissement.conf
+    reload: true
+  loop: "{{ hardening_sysctl | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Bloquer les modules noyau inutiles
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/durcissement.conf
+    content: |
+      # Géré par Ansible (rôle hardening)
+      {% for module in hardening_blocked_modules %}
+      install {{ module }} /bin/false
+      blacklist {{ module }}
+      {% endfor %}
+    owner: root
+    group: root
+    mode: "0644"
+
+# --- Comptes ---
+- name: Politique des comptes (login.defs)
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^#?\s*{{ item.key }}\s'
+    line: "{{ item.key }}\t{{ item.value }}"
+  loop: "{{ hardening_login_defs | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+# --- Audit et journalisation ---
+- name: Règles d'audit (fichiers sensibles)
+  ansible.builtin.copy:
+    src: audit-durcissement.rules
+    dest: /etc/audit/rules.d/durcissement.rules
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Charger les règles d'audit
+
+- name: Activer l'audit, la comptabilité des processus et sysstat
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop: [auditd, acct, sysstat]
+
+- name: Collecte sysstat activée
+  ansible.builtin.lineinfile:
+    path: /etc/default/sysstat
+    regexp: '^ENABLED='
+    line: 'ENABLED="true"'
+
+# --- Mises à jour ---
+- name: Mode liste pour needrestart (aucun redémarrage de service imprévu)
+  ansible.builtin.copy:
+    dest: /etc/needrestart/conf.d/durcissement.conf
+    content: |
+      # Géré par Ansible (rôle hardening)
+      $nrconf{restart} = 'l';
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Vérification hebdomadaire des paquets par debsums (PKGS-7370)
+  ansible.builtin.lineinfile:
+    path: /etc/default/debsums
+    regexp: '^CRON_CHECK='
+    line: 'CRON_CHECK=weekly'
+
+# --- Bannières (BANN-7126, BANN-7130) ---
+# Lynis compte des mots-clés anglais (authorized, monitored, prosecuted…) : texte bilingue.
+- name: Bannière légale
+  ansible.builtin.copy:
+    src: issue
+    dest: "{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: [/etc/issue, /etc/issue.net]
+
+# --- Intégrité (FINT-4350, HRDN-7230) ---
+# Bases créées une seule fois : elles représentent l'état de référence du système.
+- name: Base de référence AIDE
+  ansible.builtin.command: aideinit --yes --force
+  args:
+    creates: /var/lib/aide/aide.db
+
+- name: Base de référence rkhunter
+  ansible.builtin.command: rkhunter --propupd
+  args:
+    creates: /var/lib/rkhunter/db/rkhunter.dat

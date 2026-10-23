@@ -1,0 +1,14 @@
+---
+- name: Recharger sshd
+  ansible.builtin.systemd:
+    name: ssh
+    state: reloaded
+
+- name: Recharger le pare-feu
+  ansible.builtin.systemd:
+    name: nftables
+    state: reloaded
+
+- name: Charger les règles d'audit
+  ansible.builtin.command: augenrules --load
+  changed_when: true

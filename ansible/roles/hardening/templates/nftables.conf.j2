@@ -1,0 +1,28 @@
+#!/usr/sbin/nft -f
+# {{ ansible_managed }}
+# Entrée refusée par défaut. L'agent Teleport n'ouvre que des connexions sortantes
+# (tunnel inverse) : aucune ouverture n'est nécessaire pour lui.
+# Attention : « flush ruleset » efface les règles des autres outils (Docker, par exemple).
+flush ruleset
+
+table inet filter {
+    chain input {
+        type filter hook input priority filter; policy drop;
+        iif "lo" accept
+        ct state established,related accept
+        ct state invalid drop
+        ip protocol icmp accept
+        ip6 nexthdr ipv6-icmp accept
+{% for source in hardening_ssh_sources %}
+        ip saddr {{ source }} tcp dport 22 accept
+{% endfor %}
+    }
+
+    chain forward {
+        type filter hook forward priority filter; policy drop;
+    }
+
+    chain output {
+        type filter hook output priority filter; policy accept;
+    }
+}

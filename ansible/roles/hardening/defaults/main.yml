@@ -1,0 +1,64 @@
+---
+# Durcissement d'une VM Debian 13, d'après l'audit Lynis de référence (docs/lynis-baseline.md).
+# Adresses autorisées en SSH direct par le pare-feu (la VM de gestion) ; Teleport est sortant.
+hardening_ssh_sources: "{{ homelab_admin_sources }}"
+
+hardening_packages:
+  - nftables
+  - auditd
+  - acct              # ACCT-9622 : comptabilité des processus
+  - sysstat           # ACCT-9626
+  - aide              # FINT-4350 : intégrité des fichiers
+  - rkhunter          # HRDN-7230 : recherche de rootkits
+  - debsums           # PKGS-7370
+  - apt-show-versions # PKGS-7394
+  - needrestart       # DEB-0831
+  - libpam-tmpdir     # DEB-0280
+  - libpam-passwdqc   # AUTH-9262
+  - lynis             # audits suivants
+
+# SSH-7408 (valeurs proposées par Lynis)
+hardening_sshd:
+  AllowTcpForwarding: "no"
+  AllowAgentForwarding: "no"
+  LogLevel: VERBOSE
+  MaxAuthTries: 3
+  MaxSessions: 2
+  TCPKeepAlive: "no"
+
+# AUTH-9230, AUTH-9286, AUTH-9328
+hardening_login_defs:
+  PASS_MAX_DAYS: 365
+  PASS_MIN_DAYS: 1
+  UMASK: "027"
+  SHA_CRYPT_MIN_ROUNDS: 5000
+  SHA_CRYPT_MAX_ROUNDS: 10000
+
+# KRNL-6000 (profil Lynis) : réseau et noyau
+hardening_sysctl:
+  net.ipv4.conf.all.accept_redirects: 0
+  net.ipv4.conf.default.accept_redirects: 0
+  net.ipv6.conf.all.accept_redirects: 0
+  net.ipv6.conf.default.accept_redirects: 0
+  net.ipv4.conf.all.send_redirects: 0
+  net.ipv4.conf.default.send_redirects: 0
+  net.ipv4.conf.all.accept_source_route: 0
+  net.ipv4.conf.default.accept_source_route: 0
+  net.ipv4.conf.all.log_martians: 1
+  net.ipv4.conf.default.log_martians: 1
+  net.ipv4.conf.all.rp_filter: 1
+  net.ipv4.conf.default.rp_filter: 1
+  net.ipv4.tcp_syncookies: 1
+  kernel.kptr_restrict: 2
+  kernel.dmesg_restrict: 1
+  kernel.sysrq: 0
+  kernel.unprivileged_bpf_disabled: 1
+  net.core.bpf_jit_harden: 2
+  kernel.yama.ptrace_scope: 1
+  fs.suid_dumpable: 0
+  fs.protected_fifos: 2
+  fs.protected_regular: 2
+  dev.tty.ldisc_autoload: 0
+
+# NETW-3200, USB-1000, STRG-1846 : modules inutiles sur une VM serveur
+hardening_blocked_modules: [dccp, sctp, rds, tipc, usb-storage, firewire-core]

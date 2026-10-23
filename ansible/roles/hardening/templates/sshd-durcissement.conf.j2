@@ -1,0 +1,5 @@
+# {{ ansible_managed }}
+# Nommé 05-… : sshd garde la PREMIÈRE valeur lue, ce fichier passe donc avant 10-hardening.conf.
+{% for key, value in hardening_sshd.items() %}
+{{ key }} {{ value }}
+{% endfor %}

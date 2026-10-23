@@ -1,0 +1,12 @@
+# Géré par Ansible (rôle hardening) : modifications des fichiers sensibles
+-w /etc/passwd -p wa -k identite
+-w /etc/group -p wa -k identite
+-w /etc/shadow -p wa -k identite
+-w /etc/gshadow -p wa -k identite
+-w /etc/sudoers -p wa -k sudo
+-w /etc/sudoers.d/ -p wa -k sudo
+-w /etc/ssh/sshd_config -p wa -k sshd
+-w /etc/ssh/sshd_config.d/ -p wa -k sshd
+-w /etc/teleport.yaml -p wa -k teleport
+-w /var/log/lastlog -p wa -k connexions
+-w /etc/nftables.conf -p wa -k pare-feu

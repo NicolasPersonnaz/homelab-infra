@@ -1,0 +1,8 @@
+---
+# Rôle de durcissement, développé sur hardening-test et mesuré avec Lynis
+# (comparaison avec docs/lynis-baseline.md). Lancé depuis la VM de gestion.
+- name: Durcissement Debian 13
+  hosts: hardening
+  become: true
+  roles:
+    - hardening

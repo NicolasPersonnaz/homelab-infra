@@ -33,6 +33,8 @@ Pièges : un clone duplique les identités (machine-id, clés SSH de l'hôte) ; 
 | internal_tls | Certificat serveur signé par la CA interne (CA sur le contrôleur, clé sur le serveur) ; le service écoute le handler `certificat interne modifié` |
 | defectdojo | DefectDojo par le Compose officiel épinglé, secrets générés sur la VM, nginx HTTPS. Voir [roles/defectdojo/README.md](roles/defectdojo/README.md) |
 
+| hardening | Durcissement Debian 13 (SSH, nftables, sysctl, modules, comptes, auditd, AIDE, rkhunter) : Lynis 67 → 85. Voir [roles/hardening/README.md](roles/hardening/README.md) |
+
 Audit Lynis de référence (avant durcissement) : [docs/lynis-baseline.md](../docs/lynis-baseline.md).
 
 Playbooks lancés par la CI : `bootstrap.yml` (VM neuves, SSH direct avec clé jetable, jonction Teleport) puis `homelab.yml` (toutes les VM sauf `gitlab`, à travers Teleport). Voir `ci/deploy.sh`.
