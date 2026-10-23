@@ -27,6 +27,19 @@ Même image, même baseline, même version de Lynis (3.1.4, `lynis audit system 
 | Mises à jour | `needrestart` en mode liste (aucun redémarrage de service imprévu), `apt-show-versions` | DEB-0831, PKGS-7394 |
 | Bannières | `/etc/issue` et `/etc/issue.net` bilingues | BANN-7126, 7130 |
 
+## Pare-feu compatible Docker et exécution par la CI
+
+- Le rôle ne gère que sa table `inet homelab` (recréée de façon atomique) : les tables de Docker (`ip nat`, `ip filter`…) ne sont jamais touchées. L'ancienne table `inet filter` de la première version est supprimée.
+- Hôte Docker détecté automatiquement (`/usr/bin/dockerd`) : pas de chaîne `forward` (la politique de transfert reste celle de Docker), entrées acceptées depuis `docker0` et `br-*` (conteneurs vers l'hôte, par exemple les jobs CI qui joignent GitLab), `/var/lib/docker` et `/var/lib/containerd` exclus d'AIDE.
+- Ports ouverts au LAN par VM : `hardening_firewall_tcp_ports` dans `ansible/host_vars/<vm>.yml` (`defectdojo` : 80 et 443).
+- Le rôle fait partie de `homelab.yml`, joué par le job `deploy` à travers Teleport sur toutes les VM créées par Terraform, sauf `gitlab` (playbook à part) et `lynis-test` (`hardening_enabled: false` : référence « avant »).
+
+Résultat vérifié :
+- Migration sur `hardening-test` : seule `inet homelab` subsiste, accès `gestion` et Teleport conservés, `changed=0`.
+- Job `deploy` n°121 (731 s, dont l'initialisation d'AIDE) : `defectdojo` `changed=18`, `hardening-test` `changed=0`, `lynis-test` 20 tâches ignorées ; second passage `changed=0` sur les trois VM.
+- `defectdojo` après durcissement : tables Docker et `inet homelab` côte à côte, HTTPS `200` depuis le LAN, port 22 injoignable depuis un poste du LAN, conteneurs reliés entre eux (`celery → valkey : True`).
+- Redémarrage de `defectdojo` : HTTPS `200`, 6 conteneurs actifs, nftables et Teleport actifs, nœud de nouveau en ligne.
+
 ## Commandes
 
 ```bash
@@ -79,6 +92,7 @@ Import dans DefectDojo : même méthode que pour la référence (voir [docs/lyni
 
 | Limite | Piste |
 |---|---|
-| `flush ruleset` dans `/etc/nftables.conf` efface les règles des autres outils | Ne pas appliquer tel quel sur une VM avec Docker (gitlab, defectdojo) : tables dédiées ou intégration des règles Docker |
-| Rôle lancé depuis `gestion`, pas encore par la CI | L'ajouter à `homelab.yml` pour les VM sans Docker une fois validé |
+| Sur un hôte Docker, le trafic transféré vers les conteneurs n'est filtré que par Docker | Ne publier les ports des conteneurs que sur `127.0.0.1` (cas de DefectDojo), ou utiliser la chaîne `DOCKER-USER` |
+| `gitlab` n'est pas encore durcie (hors CI, héberge le runner) | L'ajouter à `gitlab.yml` avec `hardening_firewall_tcp_ports: [80, 443]`, en vérifiant les jobs CI juste après |
+| Initialisation d'AIDE longue au premier passage (environ 10 min sur `defectdojo`) | Exclusions supplémentaires, ou initialisation en tâche de fond |
 | Bases AIDE et rkhunter initialisées une seule fois | Mise à jour volontaire après une modification légitime (`aideinit`, `rkhunter --propupd`) et contrôle planifié |
