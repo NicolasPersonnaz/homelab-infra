@@ -11,3 +11,11 @@
     - users
     - ssh
     - teleport_node
+  post_tasks:
+    # La clé jetable de l'amorçage est inutilisable (clé privée détruite avec le job) :
+    # on la retire quand même, une fois la VM accessible par Teleport.
+    - name: Retirer les clés SSH jetables d'amorçage
+      ansible.builtin.lineinfile:
+        path: /home/ansible/.ssh/authorized_keys
+        regexp: ' bootstrap-job-[0-9]+$'
+        state: absent
