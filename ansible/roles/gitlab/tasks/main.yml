@@ -12,11 +12,19 @@
 - name: Importer la CA et le certificat
   ansible.builtin.import_tasks: tls.yml
 
+- name: Modèle cloud-init de /etc/hosts présent ?
+  ansible.builtin.stat:
+    path: /etc/cloud/templates/hosts.debian.tmpl
+  register: gitlab_hosts_template
+
+# cloud-init régénère /etc/hosts à chaque démarrage (manage_etc_hosts imposé par Proxmox) :
+# la ligne doit aussi être dans son modèle pour survivre à un redémarrage.
 - name: Résolution locale du nom GitLab
   ansible.builtin.lineinfile:
-    path: /etc/hosts
+    path: "{{ item }}"
     regexp: '\s{{ gitlab_hostname | regex_escape }}$'
     line: "{{ gitlab_ip }} {{ gitlab_hostname }}"
+  loop: "{{ ['/etc/hosts'] + (['/etc/cloud/templates/hosts.debian.tmpl'] if gitlab_hosts_template.stat.exists else []) }}"
 
 - name: Dépendances de GitLab
   ansible.builtin.apt:

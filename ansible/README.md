@@ -25,6 +25,8 @@ Pièges : un clone duplique les identités (machine-id, clés SSH de l'hôte) ; 
 | ssh | Configuration sshd durcie (fichier complémentaire), validée par `sshd -t`, rechargement par handler |
 | gitlab | GitLab CE épinglé, HTTPS par CA interne, réglages mémoire, swap. Voir [roles/gitlab/README.md](roles/gitlab/README.md) |
 | gitlab_runner | Docker Engine et GitLab Runner (systemd, exécuteur Docker), enregistrement par jeton saisi au prompt |
+| ci_image | Image Docker `homelab-ci` des jobs CI, construite localement sur la VM gitlab |
+| gitlab_client | Sur la VM de gestion : nom de GitLab et CA interne, pour `git push` et HTTPS (playbook `gestion.yml`) |
 
 ## Utilisation
 

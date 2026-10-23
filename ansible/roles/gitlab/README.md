@@ -80,6 +80,27 @@ Accès depuis un poste : ajouter `192.168.1.69 gitlab.<domaine>` dans `/etc/host
 - `gitlab-runner verify` : `Verifying runner... is valid`. Dans `config.toml` : `executor = "docker"`, `privileged = false`, `tls-ca-file` vers la CA interne, `extra_hosts` vers l'IP de la VM, aucun `docker.sock` monté.
 - Pipeline de test (projet privé `ci-smoke-test`) : `success` en 14 s. Le job s'exécute dans `debian:trixie-slim`, clone le dépôt en HTTPS (`Getting source from Git repository`) et confirme `pas de docker.sock dans le job`.
 
+## Intégration continue (projet `homelab/homelab-infra`)
+
+Le dépôt de référence est sur GitLab. Un miroir « push » (clé SSH de déploiement côté GitHub, branches protégées seulement, clés d'hôte GitHub vérifiées) recopie chaque push vers GitHub.
+
+| Étape | Jobs | Outil |
+|---|---|---|
+| `check` | `ansible-lint` (profil production), `terraform-validate` (`fmt -check`, `validate`) | Qualité du code d'infrastructure |
+| `security` | `gitleaks` (tout l'historique, `GIT_DEPTH: 0`), `semgrep` (`p/default`) | Secrets et code |
+
+Les jobs tournent dans l'image `homelab-ci`, construite par le rôle `ci_image` **sur la VM gitlab** : pas de registre d'images, et le runner l'utilise grâce à `pull_policy = ["if-not-present"]`.
+
+| Choix | Pourquoi |
+|---|---|
+| Image de base épinglée par empreinte (`@sha256:`) | Un tag peut être republié, une empreinte non |
+| Terraform et Teleport depuis leurs dépôts APT signés, versions épinglées | Intégrité vérifiée par APT, mêmes versions que sur `gestion` et le cluster |
+| gitleaks téléchargé avec vérification `sha256sum -c` | Un binaire modifié en transit fait échouer la construction |
+| semgrep dans un environnement isolé (`pipx`) | Ses dépendances Python ne se mélangent pas à celles d'Ansible |
+| Version de l'image explicite (`homelab-ci:1`) | Changer le Dockerfile = incrémenter `ci_image_version` et l'image dans `.gitlab-ci.yml` |
+
+Résultat vérifié : pipeline n°2 en `success` en 30 s (`ansible-lint` 12 s, `terraform-validate` 6 s, `gitleaks` 5 s, `semgrep` 7 s). Le miroir est en `finished` sans erreur : `git ls-remote` sur GitHub montre le même commit que GitLab.
+
 ## Pièges rencontrés
 
 | Symptôme | Cause | Solution |
@@ -88,6 +109,8 @@ Accès depuis un poste : ajouter `192.168.1.69 gitlab.<domaine>` dans `/etc/host
 | `--check` échoue sur « Déposer les clés SSH publiques » | En simulation, l'utilisateur n'est pas créé : la tâche suivante ne le trouve pas | Limite du mode `--check` sur une VM neuve, pas un bug |
 | `ansible-lint` : `no-handler` sur le swap | Tâches conditionnées par `is changed` | Une seule tâche `shell` avec `creates: /swapfile` |
 | `flush_handlers` trop tôt déclenche `gitlab-ctl reconfigure` avant l'installation | Les handlers en attente sont tous exécutés | Ne vider les handlers qu'à un moment où seul celui de la CA peut être en attente |
+| Après un redémarrage, jobs bloqués en `pending`, runner en `lookup gitlab.<domaine> ... no such host` | cloud-init régénère `/etc/hosts` à chaque démarrage : Proxmox impose `manage_etc_hosts: true` dans ses données cloud-init, qui l'emportent sur `cloud.cfg.d` | La ligne est aussi écrite dans `/etc/cloud/templates/hosts.debian.tmpl`. Vérifié par un redémarrage : ligne présente, aucune erreur DNS, jobs repris |
+| semgrep : `CPU ISA level is lower than required` | Processeur émulé `qemu64` (défaut du fournisseur) limité à x86-64-v1 | `cpu.type = "host"` dans Terraform (redémarrage de la VM) |
 | Les jobs ne résoudraient pas `gitlab.<domaine>` | Les conteneurs n'héritent pas de `/etc/hosts` de l'hôte | `--docker-extra-hosts` à l'enregistrement |
 
 ## Limites
