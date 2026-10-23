@@ -1,0 +1,13 @@
+---
+# Configuration des VM créées par Terraform, lancée par la CI à travers Teleport.
+# gitlab est exclue : elle a son propre playbook (gitlab.yml), lancé depuis gestion.
+- name: Configuration des VM du homelab
+  hosts: homelab:!gitlab
+  become: true
+  vars:
+    ssh_allowed_sources: "{{ homelab_admin_sources }}"
+  roles:
+    - common
+    - users
+    - ssh
+    - teleport_node

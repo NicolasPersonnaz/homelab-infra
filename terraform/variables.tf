@@ -5,17 +5,13 @@ variable "ssh_public_key" { type = string }
 variable "gateway" { type = string }
 variable "dns_servers" { type = list(string) }
 
+# Clé SSH jetable générée par le job CI : sert uniquement à amorcer une VM neuve.
+variable "bootstrap_ssh_public_key" {
+  type    = string
+  default = ""
+}
+
 variable "datastore_id" {
   type    = string
   default = "local-lvm"
-}
-
-# Une entrée par VM : la clé de la map devient le nom de la VM.
-variable "vms" {
-  type = map(object({
-    ip        = string
-    cores     = number
-    memory    = number # Mo
-    disk_size = number # Go, doit être >= à la taille du disque du template
-  }))
 }

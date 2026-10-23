@@ -4,6 +4,7 @@ teleport_ci_output_dir: "{{ lookup('ansible.builtin.env', 'HOME') }}/homelab-tel
 teleport_ci_gitlab_domain: "{{ hostvars[groups['gitlab'][0]]['gitlab_hostname'] }}"
 teleport_ci_bot_name: homelab-ci
 teleport_ci_role_name: homelab-ci-deployer
+teleport_ci_onboarder_role_name: homelab-ci-onboarder
 teleport_ci_token_name: homelab-ci-gitlab
 # Seul ce projet, sur cette branche protégée, peut obtenir l'identité du bot.
 teleport_ci_project_path: homelab/homelab-infra

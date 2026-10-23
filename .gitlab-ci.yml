@@ -13,6 +13,7 @@ workflow:
 stages:
   - check
   - security
+  - plan
   - deploy
 
 # ---------------------------------------------------
@@ -82,3 +83,32 @@ teleport-check:
     - tsh -i /tmp/tbot/identity --proxy="$TELEPORT_PROXY" ls
     # Commande exécutée par Teleport sur tous les nœuds env=homelab (pas de SSH direct)
     - tsh -i /tmp/tbot/identity --proxy="$TELEPORT_PROXY" ssh ansible@env=homelab 'hostname; id -un; sudo -n true && echo sudo OK'
+
+# ---------------------------------------------------
+# PLAN / DEPLOY : Terraform + Ansible, état chez GitLab
+# ---------------------------------------------------
+# Variables CI protégées : TERRAFORM_TOKEN (masquée), TF_VAR_*, TELEPORT_*.
+.protected-main:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"
+
+terraform-plan:
+  stage: plan
+  extends: .protected-main
+  resource_group: homelab
+  script:
+    - bash ci/plan.sh
+
+# Bouton manuel : on relit le plan, puis on déploie.
+deploy:
+  stage: deploy
+  needs: [terraform-plan]
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"
+      when: manual
+  resource_group: homelab
+  id_tokens:
+    TBOT_GITLAB_JWT:
+      aud: $TELEPORT_CLUSTER
+  script:
+    - bash ci/deploy.sh

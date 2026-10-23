@@ -1,0 +1,20 @@
+---
+# Lancé par la CI sur les VM neuves uniquement, en SSH direct avec une clé jetable :
+# son seul but est de faire rejoindre Teleport. Tout le reste passe ensuite par Teleport.
+- name: Amorçage d'une VM neuve
+  hosts: bootstrap
+  become: true
+  gather_facts: false
+  pre_tasks:
+    - name: Attendre que SSH réponde
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+
+    - name: Attendre la fin de cloud-init
+      ansible.builtin.command: cloud-init status --wait
+      changed_when: false
+
+    - name: Collecter les faits
+      ansible.builtin.setup:
+  roles:
+    - teleport_node

@@ -51,8 +51,14 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
     user_account {
       username = "ansible"
-      keys     = [var.ssh_public_key]
+      keys     = compact([var.ssh_public_key, var.bootstrap_ssh_public_key])
     }
+  }
+
+  # La clé jetable change à chaque job : l'ignorer après la création évite un plan
+  # jamais vide. cloud-init ne lit ces clés qu'au premier démarrage de toute façon.
+  lifecycle {
+    ignore_changes = [initialization[0].user_account]
   }
 }
 

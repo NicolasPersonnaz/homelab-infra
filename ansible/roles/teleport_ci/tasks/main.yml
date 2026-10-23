@@ -19,5 +19,6 @@
     mode: "0600"
   loop:
     - role.yaml
+    - role-onboarder.yaml
     - bot.yaml
     - token.yaml

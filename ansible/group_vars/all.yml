@@ -4,3 +4,7 @@ users_list:
     shell: /bin/bash
     ssh_keys:
       - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICgFf+iTa5xjuDfm6QYL81DnFvzdC4zn5JXy4syAcQ1n nicolas@ansible"
+
+# Seules adresses autorisées en SSH direct sur les VM gérées par Teleport (la VM de gestion)
+homelab_admin_sources:
+  - 192.168.1.42

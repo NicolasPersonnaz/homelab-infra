@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+# Droit minimal pour enrôler une VM neuve : créer un jeton de jonction, sans pouvoir
+# lister, lire ni supprimer les jetons existants.
+# Limite : la règle RBAC ne restreint pas le type de jeton créé (voir README).
+kind: role
+version: v7
+metadata:
+  name: {{ teleport_ci_onboarder_role_name }}
+spec:
+  allow:
+    rules:
+      - resources: [token]
+        verbs: [create]

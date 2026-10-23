@@ -5,11 +5,4 @@ ssh_public_key   = "ssh-ed25519 AAAA"
 gateway          = "192.168.1.254"
 dns_servers      = ["192.168.1.254"]
 
-vms = {
-  gitlab = {
-    ip        = "192.168.1.61"
-    cores     = 4
-    memory    = 8192
-    disk_size = 50
-  }
-}
+# La liste des VM est dans vms.tf (versionnée) : ne pas la redéfinir ici.
