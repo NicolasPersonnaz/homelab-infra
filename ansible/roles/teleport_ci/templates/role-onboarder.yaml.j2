@@ -1,6 +1,7 @@
 # {{ ansible_managed }}
 # Droit minimal pour enrôler une VM neuve : créer un jeton de jonction, sans pouvoir
-# lister, lire ni supprimer les jetons existants.
+# lister, lire, modifier ni supprimer les jetons existants (la CI utilise
+# « tctl tokens add », création pure ; « tctl create » exigerait aussi update).
 # Limite : la règle RBAC ne restreint pas le type de jeton créé (voir README).
 kind: role
 version: v7

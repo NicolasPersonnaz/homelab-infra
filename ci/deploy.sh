@@ -55,10 +55,17 @@ TF_VAR_bootstrap_ssh_public_key=$(cat "$work/bootstrap.pub")
 export TF_VAR_bootstrap_ssh_public_key
 
 echo "== 3. Terraform"
+# Une VM créée lors d'un déploiement interrompu avant sa jonction ne connaît que la clé jetable
+# de ce job-là. REPLACE_VMS (saisie au lancement du job manuel) la fait recréer. Jamais
+# automatique : une VM absente de Teleport peut simplement avoir un agent arrêté.
+replace_args=()
+for vm in ${REPLACE_VMS:-}; do
+  replace_args+=("-replace=proxmox_virtual_environment_vm.vm[\"$vm\"]")
+done
 (
   cd terraform
   terraform init -input=false
-  terraform apply -input=false -auto-approve -lock-timeout=60s
+  terraform apply -input=false -auto-approve -lock-timeout=60s "${replace_args[@]}"
   terraform output -json vm_ips > "$work/vms.json"
 )
 
@@ -77,13 +84,17 @@ echo "VM neuves : ${new_vms[*]:-aucune}"
 
 if ((${#new_vms[@]})); then
   echo "== 5. Jeton de jonction de 15 minutes (jamais affiché)"
-  token=$(python3 -c 'import secrets; print(secrets.token_hex(20))')
-  (umask 077 && printf '%s' "$token" > "$work/node-token")
-  expires=$(date -u -d '+15 min' +%Y-%m-%dT%H:%M:%SZ)
-  printf 'kind: token\nversion: v2\nmetadata:\n  name: %s\n  expires: "%s"\nspec:\n  roles: [Node]\n  join_method: token\n' \
-    "$token" "$expires" \
-    | tctl --identity="$tbot_dir/identity" --auth-server="$TELEPORT_PROXY" create >/dev/null
-  unset token
+  # « tokens add » = création pure (CreateToken) : le droit token/create suffit.
+  # « tctl create » ferait un UpsertToken, qui exige aussi token/update.
+  # Teleport génère la valeur, écrite directement dans un fichier : ni écran ni ligne de commande.
+  (
+    umask 077
+    tctl --identity="$tbot_dir/identity" --auth-server="$TELEPORT_PROXY" \
+      tokens add --type=node --ttl=15m --format=json > "$work/node-token.json"
+    python3 -c 'import json, sys; sys.stdout.write(json.load(open(sys.argv[1]))["token"])' \
+      "$work/node-token.json" > "$work/node-token"
+    rm -f "$work/node-token.json"
+  )
 
   echo "== 6. Amorçage en SSH direct avec la clé jetable : ${new_vms[*]}"
   python3 - "$work/vms.json" "${new_vms[@]}" > "$work/bootstrap.ini" <<'PY'
