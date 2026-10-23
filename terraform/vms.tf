@@ -21,5 +21,12 @@ variable "vms" {
       memory    = 4096
       disk_size = 40
     }
+    # Baseline sans durcissement : audit Lynis de référence (« avant »)
+    lynis-test = {
+      ip        = "192.168.1.71"
+      cores     = 2
+      memory    = 2048
+      disk_size = 20
+    }
   }
 }
