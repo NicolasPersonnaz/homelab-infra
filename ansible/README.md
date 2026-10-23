@@ -27,6 +27,7 @@ Pièges : un clone duplique les identités (machine-id, clés SSH de l'hôte) ; 
 | gitlab_runner | Docker Engine et GitLab Runner (systemd, exécuteur Docker), enregistrement par jeton saisi au prompt |
 | ci_image | Image Docker `homelab-ci` des jobs CI, construite localement sur la VM gitlab |
 | gitlab_client | Sur la VM de gestion : nom de GitLab et CA interne, pour `git push` et HTTPS (playbook `gestion.yml`) |
+| teleport_ci | Sur la VM de gestion : génère hors du dépôt le rôle, le bot et le jeton Teleport de la CI (jonction `gitlab`, `static_jwks`) |
 
 ## Utilisation
 

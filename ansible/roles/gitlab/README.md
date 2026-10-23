@@ -101,6 +101,19 @@ Les jobs tournent dans l'image `homelab-ci`, construite par le rôle `ci_image` 
 
 Résultat vérifié : pipeline n°2 en `success` en 30 s (`ansible-lint` 12 s, `terraform-validate` 6 s, `gitleaks` 5 s, `semgrep` 7 s). Le miroir est en `finished` sans erreur : `git ls-remote` sur GitHub montre le même commit que GitLab.
 
+## Identité Teleport de la CI (bot `homelab-ci`)
+
+Le job `teleport-check` obtient une identité Teleport **sans aucun secret stocké** :
+
+1. GitLab injecte dans le job un jeton OIDC signé (`id_tokens`, `aud` = nom du cluster Teleport).
+2. `tbot --oneshot` le présente avec la méthode de jonction `gitlab`.
+3. Teleport vérifie la signature avec les clés publiques de GitLab copiées dans le jeton (`static_jwks`) : l'Auth Service n'a pas besoin de joindre GitLab ni de connaître la CA interne. Il vérifie aussi les règles du jeton (`project_path: homelab/homelab-infra`, `ref: main`, `ref_type: branch`, `ref_protected: true`).
+4. Le bot reçoit le rôle `homelab-ci-deployer` : connexion en `ansible` sur les nœuds étiquetés `env=homelab`, sessions d'1 h maximum. L'identité reste en mémoire et disparaît avec le conteneur.
+
+Le rôle Ansible `teleport_ci` (playbook `gestion.yml`) génère le rôle, le bot et le jeton dans `~/homelab-teleport` sur `gestion`, hors du dépôt (ils contiennent le domaine), puis ils sont appliqués avec `tctl create -f`. Le domaine du proxy et du cluster vient des variables CI protégées `TELEPORT_PROXY` et `TELEPORT_CLUSTER`.
+
+Résultat vérifié (pipeline n°5) : `Fetched new bot identity identity:homelab-ci ... duration=1h1m0s`, `join_method:"gitlab"`, puis `tsh ls` répond sans erreur (liste vide : aucun nœud n'a encore l'étiquette `env=homelab`). `aud: $TELEPORT_CLUSTER` est accepté par GitLab : la variable est bien résolue.
+
 ## Pièges rencontrés
 
 | Symptôme | Cause | Solution |
@@ -110,6 +123,7 @@ Résultat vérifié : pipeline n°2 en `success` en 30 s (`ansible-lint` 12 s, `
 | `ansible-lint` : `no-handler` sur le swap | Tâches conditionnées par `is changed` | Une seule tâche `shell` avec `creates: /swapfile` |
 | `flush_handlers` trop tôt déclenche `gitlab-ctl reconfigure` avant l'installation | Les handlers en attente sont tous exécutés | Ne vider les handlers qu'à un moment où seul celui de la CA peut être en attente |
 | Après un redémarrage, jobs bloqués en `pending`, runner en `lookup gitlab.<domaine> ... no such host` | cloud-init régénère `/etc/hosts` à chaque démarrage : Proxmox impose `manage_etc_hosts: true` dans ses données cloud-init, qui l'emportent sur `cloud.cfg.d` | La ligne est aussi écrite dans `/etc/cloud/templates/hosts.debian.tmpl`. Vérifié par un redémarrage : ligne présente, aucune erreur DNS, jobs repris |
+| Pipeline refusé : `script config should be a string or a nested array of strings` | Une ligne de script contenant `: ` (deux-points + espace) est lue comme une clé YAML | Bloc littéral `- \|`. Valider avant de pousser avec `Gitlab::Ci::Lint` (ou l'éditeur de pipeline) |
 | semgrep : `CPU ISA level is lower than required` | Processeur émulé `qemu64` (défaut du fournisseur) limité à x86-64-v1 | `cpu.type = "host"` dans Terraform (redémarrage de la VM) |
 | Les jobs ne résoudraient pas `gitlab.<domaine>` | Les conteneurs n'héritent pas de `/etc/hosts` de l'hôte | `--docker-extra-hosts` à l'enregistrement |
 
@@ -124,5 +138,6 @@ Résultat vérifié : pipeline n°2 en `success` en 30 s (`ansible-lint` 12 s, `
 | Mot de passe initial de `root` lu dans `/etc/gitlab/initial_root_password` (supprimé après 24 h) | À changer dès la première connexion ; sinon `gitlab-rake "gitlab:password:reset[root]"` (invite masquée) |
 | Pas de DNS : le nom se résout par `/etc/hosts` | Enregistrement sur le DNS local |
 | Pas de sauvegarde | `gitlab-backup create` planifié + copie de `/etc/gitlab/gitlab-secrets.json` hors de la VM |
+| Les clés de signature GitLab sont copiées dans le jeton Teleport (`static_jwks`) : si GitLab les change, la jonction échoue | Relancer `gestion.yml` puis `tctl create -f token.yaml` |
 
-Suite prévue : jonction Teleport par la méthode `gitlab` (OIDC) avec `static_jwks`.
+Suite prévue : la VM `gitlab` rejoint Teleport (rôle `teleport_node`), puis onboarding automatique des nouvelles VM par le pipeline.
