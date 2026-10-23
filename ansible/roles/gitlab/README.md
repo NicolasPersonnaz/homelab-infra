@@ -114,6 +114,19 @@ Le rôle Ansible `teleport_ci` (playbook `gestion.yml`) génère le rôle, le bo
 
 Résultat vérifié (pipeline n°5) : `Fetched new bot identity identity:homelab-ci ... duration=1h1m0s`, `join_method:"gitlab"`, puis `tsh ls` répond sans erreur (liste vide : aucun nœud n'a encore l'étiquette `env=homelab`). `aud: $TELEPORT_CLUSTER` est accepté par GitLab : la variable est bien résolue.
 
+## La VM gitlab dans Teleport (rôle `teleport_node`)
+
+- Agent Teleport `18.7.6` (version du cluster, bloquée par `hold`), service SSH Teleport avec l'étiquette `env=homelab` : c'est elle qui donne accès au bot CI.
+- Jonction par un jeton `node` de 15 minutes. `teleport-node-token.yml` le génère sur `gestion` (fichier root `600`), il est appliqué par un tube (`... | tctl create`) sans jamais être affiché. Teleport lit le jeton depuis un fichier (`join_params.token_name` accepte un chemin), le fichier est supprimé sur le nœud et sur `gestion` après la jonction.
+- Le nom du tunnel Teleport est écrit dans `/etc/hosts` et dans le modèle cloud-init (même piège que pour GitLab).
+- SSH direct : `ssh_allowed_sources` (rôle `ssh`) produit `AllowUsers *@<ip-gestion>`. L'accès normal passe par Teleport (audit, sessions enregistrées). `gestion` garde un accès de secours, et Ansible s'y connecte toujours en SSH direct.
+
+Résultat vérifié :
+- `tsh ls` : `gitlab ⟵ Tunnel env=homelab`. Jeton absent du nœud et de `gestion` après la jonction.
+- Passage suivant du playbook : `changed=0`.
+- SSH direct depuis un poste du LAN : `User ansible from <ip> not allowed because not listed in AllowUsers`.
+- Pipeline n°7, job `teleport-check` : le bot ne voit que `gitlab` (pas les autres nœuds du cluster) et `tsh ssh ansible@env=homelab` répond `gitlab`, `ansible`, `sudo OK`.
+
 ## Pièges rencontrés
 
 | Symptôme | Cause | Solution |
@@ -140,4 +153,4 @@ Résultat vérifié (pipeline n°5) : `Fetched new bot identity identity:homelab
 | Pas de sauvegarde | `gitlab-backup create` planifié + copie de `/etc/gitlab/gitlab-secrets.json` hors de la VM |
 | Les clés de signature GitLab sont copiées dans le jeton Teleport (`static_jwks`) : si GitLab les change, la jonction échoue | Relancer `gestion.yml` puis `tctl create -f token.yaml` |
 
-Suite prévue : la VM `gitlab` rejoint Teleport (rôle `teleport_node`), puis onboarding automatique des nouvelles VM par le pipeline.
+Suite prévue : onboarding automatique des nouvelles VM par le pipeline (état Terraform chez GitLab, `plan` + `apply` en CI, jeton `node` créé par le bot).

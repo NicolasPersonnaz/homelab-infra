@@ -22,12 +22,13 @@ Pièges : un clone duplique les identités (machine-id, clés SSH de l'hôte) ; 
 |---|---|
 | common | Paquets de base, fuseau horaire, bannière de connexion (template) |
 | users | Comptes et clés SSH publiques, pilotés par la variable `users_list` |
-| ssh | Configuration sshd durcie (fichier complémentaire), validée par `sshd -t`, rechargement par handler |
+| ssh | Configuration sshd durcie (fichier complémentaire), validée par `sshd -t`, rechargement par handler. `ssh_allowed_sources` limite le SSH direct à certaines adresses |
 | gitlab | GitLab CE épinglé, HTTPS par CA interne, réglages mémoire, swap. Voir [roles/gitlab/README.md](roles/gitlab/README.md) |
 | gitlab_runner | Docker Engine et GitLab Runner (systemd, exécuteur Docker), enregistrement par jeton saisi au prompt |
 | ci_image | Image Docker `homelab-ci` des jobs CI, construite localement sur la VM gitlab |
 | gitlab_client | Sur la VM de gestion : nom de GitLab et CA interne, pour `git push` et HTTPS (playbook `gestion.yml`) |
-| teleport_ci | Sur la VM de gestion : génère hors du dépôt le rôle, le bot et le jeton Teleport de la CI (jonction `gitlab`, `static_jwks`) |
+| teleport_ci | Sur la VM de gestion : génère hors du dépôt le rôle, le bot et le jeton Teleport de la CI (jonction `gitlab`, `static_jwks`), et les jetons `node` de courte durée (`teleport-node-token.yml`) |
+| teleport_node | Agent Teleport épinglé sur un nœud, étiquettes, jonction par jeton lu depuis un fichier puis supprimé |
 
 ## Utilisation
 
