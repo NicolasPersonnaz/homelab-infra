@@ -1,11 +1,17 @@
 #!/usr/sbin/nft -f
 # {{ ansible_managed }}
-# Entrée refusée par défaut. L'agent Teleport n'ouvre que des connexions sortantes
-# (tunnel inverse) : aucune ouverture n'est nécessaire pour lui.
-# Attention : « flush ruleset » efface les règles des autres outils (Docker, par exemple).
-flush ruleset
+# Table dédiée « inet homelab » : les tables de Docker (ip filter, ip nat…) ne sont jamais
+# touchées. L'agent Teleport n'ouvre que des connexions sortantes (tunnel inverse).
 
-table inet filter {
+# Ancienne version du rôle (table « inet filter », avec flush ruleset) : supprimée si présente.
+table inet filter
+delete table inet filter
+
+# Recréation atomique de la table du homelab
+table inet homelab
+delete table inet homelab
+
+table inet homelab {
     chain input {
         type filter hook input priority filter; policy drop;
         iif "lo" accept
@@ -13,16 +19,24 @@ table inet filter {
         ct state invalid drop
         ip protocol icmp accept
         ip6 nexthdr ipv6-icmp accept
+{% if hardening_firewall_docker %}
+        # Conteneurs vers l'hôte (ex. : jobs CI qui joignent GitLab)
+        iifname "docker0" accept
+        iifname "br-*" accept
+{% endif %}
 {% for source in hardening_ssh_sources %}
         ip saddr {{ source }} tcp dport 22 accept
 {% endfor %}
+{% if hardening_firewall_tcp_ports %}
+        tcp dport { {{ hardening_firewall_tcp_ports | join(', ') }} } accept
+{% endif %}
     }
+{% if not hardening_firewall_docker %}
 
+    # Pas de routage sur une VM sans Docker. Sur un hôte Docker, la politique de
+    # transfert est celle de Docker : une chaîne « drop » ici couperait les conteneurs.
     chain forward {
         type filter hook forward priority filter; policy drop;
     }
-
-    chain output {
-        type filter hook output priority filter; policy accept;
-    }
+{% endif %}
 }

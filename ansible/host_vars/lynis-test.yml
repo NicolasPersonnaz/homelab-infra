@@ -1,0 +1,3 @@
+---
+# VM de référence « avant durcissement » (docs/lynis-baseline.md) : ne jamais la durcir
+hardening_enabled: false

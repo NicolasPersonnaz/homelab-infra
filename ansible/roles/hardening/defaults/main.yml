@@ -2,6 +2,8 @@
 # Durcissement d'une VM Debian 13, d'après l'audit Lynis de référence (docs/lynis-baseline.md).
 # Adresses autorisées en SSH direct par le pare-feu (la VM de gestion) ; Teleport est sortant.
 hardening_ssh_sources: "{{ homelab_admin_sources }}"
+# Ports TCP ouverts à tout le LAN (services de la VM), ex. [80, 443]
+hardening_firewall_tcp_ports: []
 
 hardening_packages:
   - nftables

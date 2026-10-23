@@ -23,6 +23,15 @@
   notify: Recharger sshd
 
 # --- Pare-feu (FIRE-4512) ---
+- name: Docker est-il installé ?
+  ansible.builtin.stat:
+    path: /usr/bin/dockerd
+  register: hardening_dockerd
+
+- name: Mode du pare-feu (hôte Docker ou non)
+  ansible.builtin.set_fact:
+    hardening_firewall_docker: "{{ hardening_dockerd.stat.exists }}"
+
 - name: Règles du pare-feu nftables
   ansible.builtin.template:
     src: nftables.conf.j2
@@ -125,6 +134,19 @@
   loop: [/etc/issue, /etc/issue.net]
 
 # --- Intégrité (FINT-4350, HRDN-7230) ---
+# Sur un hôte Docker, images et volumes changent en permanence : hors du contrôle d'intégrité.
+- name: Exclure les données Docker d'AIDE
+  ansible.builtin.copy:
+    dest: /etc/aide/aide.conf.d/99_aide_homelab_docker
+    content: |
+      # Géré par Ansible (rôle hardening)
+      !/var/lib/docker
+      !/var/lib/containerd
+    owner: root
+    group: root
+    mode: "0644"
+  when: hardening_firewall_docker
+
 # Bases créées une seule fois : elles représentent l'état de référence du système.
 - name: Base de référence AIDE
   ansible.builtin.command: aideinit --yes --force

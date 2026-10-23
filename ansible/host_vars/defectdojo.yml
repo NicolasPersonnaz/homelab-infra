@@ -1,0 +1,3 @@
+---
+# DefectDojo : HTTPS (et redirection HTTP) ouverts au LAN par le pare-feu du rôle hardening
+hardening_firewall_tcp_ports: [80, 443]
