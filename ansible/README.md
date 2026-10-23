@@ -29,6 +29,11 @@ Pièges : un clone duplique les identités (machine-id, clés SSH de l'hôte) ; 
 | gitlab_client | Sur la VM de gestion : nom de GitLab et CA interne, pour `git push` et HTTPS (playbook `gestion.yml`) |
 | teleport_ci | Sur la VM de gestion : génère hors du dépôt le rôle, le bot et le jeton Teleport de la CI (jonction `gitlab`, `static_jwks`), et les jetons `node` de courte durée (`teleport-node-token.yml`) |
 | teleport_node | Agent Teleport épinglé sur un nœud, étiquettes, jonction par jeton lu depuis un fichier puis supprimé |
+| docker_engine | Docker Engine et plugins (buildx, compose) depuis le dépôt officiel signé |
+| internal_tls | Certificat serveur signé par la CA interne (CA sur le contrôleur, clé sur le serveur) ; le service écoute le handler `certificat interne modifié` |
+| defectdojo | DefectDojo par le Compose officiel épinglé, secrets générés sur la VM, nginx HTTPS. Voir [roles/defectdojo/README.md](roles/defectdojo/README.md) |
+
+Audit Lynis de référence (avant durcissement) : [docs/lynis-baseline.md](../docs/lynis-baseline.md).
 
 Playbooks lancés par la CI : `bootstrap.yml` (VM neuves, SSH direct avec clé jetable, jonction Teleport) puis `homelab.yml` (toutes les VM sauf `gitlab`, à travers Teleport). Voir `ci/deploy.sh`.
 

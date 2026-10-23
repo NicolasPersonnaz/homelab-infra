@@ -1,0 +1,17 @@
+---
+# Les deux handlers écoutent le même sujet et s'exécutent dans cet ordre :
+# la configuration est vérifiée avant le rechargement.
+- name: Vérifier la configuration nginx
+  ansible.builtin.command: nginx -t
+  changed_when: false
+  listen:
+    - recharger nginx
+    - certificat interne modifié
+
+- name: Recharger nginx
+  ansible.builtin.systemd:
+    name: nginx
+    state: reloaded
+  listen:
+    - recharger nginx
+    - certificat interne modifié

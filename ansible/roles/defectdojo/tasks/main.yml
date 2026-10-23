@@ -1,0 +1,167 @@
+---
+- name: Dossiers de DefectDojo
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ defectdojo_dir }}", mode: "0750" }
+    - { path: "{{ defectdojo_dir }}/docker/extra_settings", mode: "0755" }
+
+- name: Fichier Compose officiel de la version épinglée (empreinte vérifiée)
+  ansible.builtin.get_url:
+    url: "https://raw.githubusercontent.com/DefectDojo/django-DefectDojo/{{ defectdojo_version }}/docker-compose.yml"
+    dest: "{{ defectdojo_dir }}/docker-compose.yml"
+    checksum: "sha256:{{ defectdojo_compose_sha256 }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+# Le Compose officiel contient des valeurs par défaut publiques (clé Django, clé AES,
+# mot de passe PostgreSQL) : on les remplace par des valeurs aléatoires, générées une
+# seule fois sur la VM et jamais transmises.
+- name: Générer les secrets de DefectDojo (une seule fois)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    umask 077
+    db=$(openssl rand -hex 24)
+    {
+      echo "DD_SECRET_KEY=$(openssl rand -hex 32)"
+      echo "DD_CREDENTIAL_AES_256_KEY=$(openssl rand -hex 16)"
+      echo "DD_DATABASE_PASSWORD=${db}"
+      echo "DD_DATABASE_URL=postgresql://defectdojo:${db}@postgres:5432/defectdojo"
+      echo "DD_ADMIN_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=')"
+    } > secrets.env
+  args:
+    chdir: "{{ defectdojo_dir }}"
+    creates: "{{ defectdojo_dir }}/secrets.env"
+    executable: /bin/bash
+  no_log: true
+
+- name: Droits du fichier des secrets
+  ansible.builtin.file:
+    path: "{{ defectdojo_dir }}/secrets.env"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Réglages non secrets
+  ansible.builtin.template:
+    src: config.env.j2
+    dest: "{{ defectdojo_dir }}/config.env"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Surcharge du fichier Compose
+  ansible.builtin.template:
+    src: docker-compose.override.yml.j2
+    dest: "{{ defectdojo_dir }}/docker-compose.override.yml"
+    owner: root
+    group: root
+    mode: "0644"
+
+# L'initializer (migrations, compte admin) s'exécute puis s'arrête : le relancer à chaque
+# passage casserait l'idempotence. Il ne tourne qu'à l'installation et aux montées de version.
+- name: Version de DefectDojo déjà initialisée
+  ansible.builtin.slurp:
+    src: "{{ defectdojo_dir }}/.initialized-version"
+  register: defectdojo_initialized
+  failed_when: false
+
+- name: Faut-il initialiser cette version ?
+  ansible.builtin.set_fact:
+    defectdojo_needs_init: "{{ (defectdojo_initialized.content | default('') | b64decode | trim) != defectdojo_version }}"
+
+- name: Installation ou montée de version (initializer compris)
+  community.docker.docker_compose_v2:
+    project_src: "{{ defectdojo_dir }}"
+    files: [docker-compose.yml, docker-compose.override.yml]
+    env_files: [config.env, secrets.env]
+    build: never
+    pull: missing
+    remove_orphans: true
+    state: present
+  when: defectdojo_needs_init
+
+- name: Témoin de la version initialisée
+  ansible.builtin.copy:
+    content: "{{ defectdojo_version }}\n"
+    dest: "{{ defectdojo_dir }}/.initialized-version"
+    owner: root
+    group: root
+    mode: "0644"
+  when: defectdojo_needs_init
+
+- name: Services DefectDojo démarrés (sans relancer l'initializer)
+  community.docker.docker_compose_v2:
+    project_src: "{{ defectdojo_dir }}"
+    files: [docker-compose.yml, docker-compose.override.yml]
+    env_files: [config.env, secrets.env]
+    services: [nginx, uwsgi, celerybeat, celeryworker, postgres, valkey]
+    dependencies: false
+    build: never
+    pull: missing
+    state: present
+
+- name: Modèle cloud-init de /etc/hosts présent ?
+  ansible.builtin.stat:
+    path: /etc/cloud/templates/hosts.debian.tmpl
+  register: defectdojo_hosts_template
+
+- name: Résolution locale du nom DefectDojo
+  ansible.builtin.lineinfile:
+    path: "{{ item }}"
+    regexp: '\s{{ defectdojo_hostname | regex_escape }}$'
+    line: "{{ defectdojo_ip }} {{ defectdojo_hostname }}"
+  loop: "{{ ['/etc/hosts'] + (['/etc/cloud/templates/hosts.debian.tmpl'] if defectdojo_hosts_template.stat.exists else []) }}"
+
+- name: Installer nginx (frontal HTTPS)
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Retirer le site par défaut de nginx
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: recharger nginx
+
+- name: Site HTTPS de DefectDojo
+  ansible.builtin.template:
+    src: nginx-defectdojo.conf.j2
+    dest: /etc/nginx/sites-available/defectdojo
+    owner: root
+    group: root
+    mode: "0644"
+  notify: recharger nginx
+
+- name: Activer le site DefectDojo
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/defectdojo
+    dest: /etc/nginx/sites-enabled/defectdojo
+    state: link
+  notify: recharger nginx
+
+- name: Activer nginx
+  ansible.builtin.systemd:
+    name: nginx
+    enabled: true
+    state: started
+
+- name: Appliquer la configuration nginx
+  ansible.builtin.meta: flush_handlers
+
+- name: Vérifier que DefectDojo répond en HTTPS avec un certificat valide
+  ansible.builtin.uri:
+    url: "https://{{ defectdojo_hostname }}/login"
+    ca_path: /usr/local/share/ca-certificates/homelab-ca.crt
+    status_code: 200
+  register: defectdojo_login
+  until: defectdojo_login.status == 200
+  retries: 30
+  delay: 10

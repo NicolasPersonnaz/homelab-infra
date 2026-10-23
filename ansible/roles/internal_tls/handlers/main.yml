@@ -1,0 +1,4 @@
+---
+- name: Mettre à jour les CA du système
+  ansible.builtin.command: update-ca-certificates
+  changed_when: true

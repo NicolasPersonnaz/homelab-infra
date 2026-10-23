@@ -1,0 +1,126 @@
+---
+- name: Vérifier les paramètres du certificat
+  ansible.builtin.assert:
+    that:
+      - internal_tls_hostname | length > 0
+      - internal_tls_ip | length > 0
+    fail_msg: "internal_tls_hostname et internal_tls_ip sont obligatoires"
+
+# CA : créée une seule fois sur le contrôleur (réutilisée si elle existe déjà).
+- name: Dossier de la CA (contrôleur)
+  ansible.builtin.file:
+    path: "{{ internal_tls_ca_dir }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Clé privée de la CA (contrôleur)
+  community.crypto.openssl_privatekey:
+    path: "{{ internal_tls_ca_dir }}/ca.key"
+    type: ECC
+    curve: secp384r1
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Demande de certificat de la CA (contrôleur)
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: "{{ internal_tls_ca_dir }}/ca.key"
+    common_name: "{{ internal_tls_ca_name }}"
+    basic_constraints: ["CA:TRUE", "pathlen:0"]
+    basic_constraints_critical: true
+    key_usage: [keyCertSign, cRLSign]
+    key_usage_critical: true
+  delegate_to: localhost
+  become: false
+  run_once: true
+  changed_when: false
+  register: internal_tls_ca_csr
+
+- name: Certificat auto-signé de la CA (contrôleur)
+  community.crypto.x509_certificate:
+    path: "{{ internal_tls_ca_dir }}/ca.crt"
+    csr_content: "{{ internal_tls_ca_csr.csr }}"
+    privatekey_path: "{{ internal_tls_ca_dir }}/ca.key"
+    provider: selfsigned
+    selfsigned_not_after: "+3650d"
+    mode: "0644"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Faire confiance à la CA sur le serveur
+  ansible.builtin.copy:
+    src: "{{ internal_tls_ca_dir }}/ca.crt"
+    dest: "{{ internal_tls_ca_trust_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Mettre à jour les CA du système
+
+# Certificat serveur : la clé est générée sur le serveur, seule la CSR voyage.
+- name: Bibliothèque cryptography sur le serveur
+  ansible.builtin.apt:
+    name: python3-cryptography
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Dossier des certificats
+  ansible.builtin.file:
+    path: "{{ internal_tls_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Clé privée du serveur
+  community.crypto.openssl_privatekey:
+    path: "{{ internal_tls_dir }}/{{ internal_tls_hostname }}.key"
+    type: ECC
+    curve: secp384r1
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Demande de certificat du serveur
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: "{{ internal_tls_dir }}/{{ internal_tls_hostname }}.key"
+    common_name: "{{ internal_tls_hostname }}"
+    subject_alt_name:
+      - "DNS:{{ internal_tls_hostname }}"
+      - "IP:{{ internal_tls_ip }}"
+    extended_key_usage: [serverAuth]
+  changed_when: false
+  register: internal_tls_csr
+
+- name: Lire le certificat existant
+  ansible.builtin.slurp:
+    src: "{{ internal_tls_dir }}/{{ internal_tls_hostname }}.crt"
+  register: internal_tls_current
+  failed_when: false
+
+- name: Signer le certificat avec la CA (contrôleur)
+  community.crypto.x509_certificate_pipe:
+    content: "{{ (internal_tls_current.content | b64decode) if internal_tls_current.content is defined else omit }}"
+    csr_content: "{{ internal_tls_csr.csr }}"
+    provider: ownca
+    ownca_path: "{{ internal_tls_ca_dir }}/ca.crt"
+    ownca_privatekey_path: "{{ internal_tls_ca_dir }}/ca.key"
+    ownca_not_after: "{{ internal_tls_validity }}"
+  delegate_to: localhost
+  become: false
+  register: internal_tls_signed
+
+# Le service qui utilise le certificat écoute « certificat interne modifié » (handler listen).
+- name: Déposer le certificat
+  ansible.builtin.copy:
+    content: "{{ internal_tls_signed.certificate }}"
+    dest: "{{ internal_tls_dir }}/{{ internal_tls_hostname }}.crt"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: certificat interne modifié

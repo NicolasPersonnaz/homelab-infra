@@ -1,0 +1,13 @@
+---
+# Lancé depuis la VM de gestion (la CA interne y est) : la CI s'occupe de la baseline
+# (homelab.yml), ce playbook installe l'application.
+- name: DefectDojo (Docker Compose officiel, HTTPS par la CA interne)
+  hosts: defectdojo
+  become: true
+  roles:
+    - docker_engine
+    - role: internal_tls
+      vars:
+        internal_tls_hostname: "{{ defectdojo_hostname }}"
+        internal_tls_ip: "{{ defectdojo_ip }}"
+    - defectdojo

@@ -1,0 +1,11 @@
+---
+# Certificat serveur signé par la CA interne du homelab.
+# La CA (clé et certificat) reste sur le contrôleur Ansible ; la clé du serveur reste sur le serveur.
+internal_tls_hostname: ""
+internal_tls_ip: ""
+internal_tls_dir: /etc/ssl/homelab
+internal_tls_validity: "+825d"
+# Mêmes valeurs que la CA créée par le rôle gitlab : la CA existante est réutilisée telle quelle.
+internal_tls_ca_dir: "{{ lookup('ansible.builtin.env', 'HOME') }}/homelab-ca"
+internal_tls_ca_name: "Homelab CA"
+internal_tls_ca_trust_path: /usr/local/share/ca-certificates/homelab-ca.crt

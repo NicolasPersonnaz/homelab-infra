@@ -1,0 +1,13 @@
+---
+# Version épinglée : la changer = montée de version (l'initializer rejoue les migrations).
+defectdojo_version: "3.4.202"
+# Empreinte du docker-compose.yml officiel de cette version (vérifiée au téléchargement)
+defectdojo_compose_sha256: "c1e5c171b34c249bc08742caecca099b8b1f5a61b3367c422dd42fdc3ddfa13c"
+defectdojo_dir: /opt/defectdojo
+# Même domaine que GitLab, repris de l'inventaire (rien de réel dans le dépôt)
+defectdojo_hostname: "defectdojo.{{ hostvars[groups['gitlab'][0]]['gitlab_hostname'].split('.', 1)[1] }}"
+defectdojo_ip: "{{ ansible_default_ipv4.address }}"
+defectdojo_tls_dir: /etc/ssl/homelab
+# Le nginx de DefectDojo n'écoute qu'en local ; le nginx de l'hôte fait le HTTPS.
+defectdojo_local_port: 8080
+defectdojo_upload_max: 100m

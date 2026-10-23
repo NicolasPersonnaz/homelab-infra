@@ -1,0 +1,35 @@
+# {{ ansible_managed }}
+# Surcharge du docker-compose.yml officiel : redémarrage automatique, nginx en local
+# seulement (le HTTPS est fait par le nginx de l'hôte), réglages derrière un proxy HTTPS.
+x-restart: &restart
+  restart: unless-stopped
+
+x-https: &https
+  DD_SITE_URL: "https://{{ defectdojo_hostname }}"
+  DD_CSRF_TRUSTED_ORIGINS: "https://{{ defectdojo_hostname }}"
+  DD_SECURE_PROXY_SSL_HEADER: "True"
+  DD_SESSION_COOKIE_SECURE: "True"
+  DD_CSRF_COOKIE_SECURE: "True"
+
+services:
+  nginx:
+    <<: *restart
+    # !override remplace la liste du fichier officiel (8080 et 8443 ouverts à tous)
+    ports: !override
+      - "127.0.0.1:{{ defectdojo_local_port }}:8080"
+  uwsgi:
+    <<: *restart
+    environment:
+      <<: *https
+  celerybeat:
+    <<: *restart
+  celeryworker:
+    <<: *restart
+  initializer:
+    environment:
+      # Mot de passe de l'admin créé au premier démarrage (lu par entrypoint-first-boot.sh)
+      DD_ADMIN_PASSWORD: "${DD_ADMIN_PASSWORD}"
+  postgres:
+    <<: *restart
+  valkey:
+    <<: *restart

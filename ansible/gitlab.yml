@@ -13,6 +13,7 @@
     - users
     - ssh
     - gitlab
+    - docker_engine
     - gitlab_runner
     - ci_image
     - teleport_node
