@@ -59,7 +59,9 @@ teleport-check:
     TBOT_GITLAB_JWT:
       aud: $TELEPORT_CLUSTER
   script:
-    - test -n "$TELEPORT_PROXY" || { echo "ERREUR : TELEPORT_PROXY vide"; exit 1; }
+    # Bloc littéral : un « : » nu ferait lire la ligne comme une clé YAML.
+    - |
+      test -n "$TELEPORT_PROXY" || { echo "ERREUR : TELEPORT_PROXY vide"; exit 1; }
     - |
       cat > tbot.yaml <<EOF
       version: v2
