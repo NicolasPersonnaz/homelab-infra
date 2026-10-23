@@ -10,9 +10,12 @@
       ansible.builtin.wait_for_connection:
         timeout: 300
 
+    # Code 2 = « done » avec des erreurs récupérables (avertissements) : pas bloquant.
     - name: Attendre la fin de cloud-init
       ansible.builtin.command: cloud-init status --wait
+      register: bootstrap_cloud_init
       changed_when: false
+      failed_when: bootstrap_cloud_init.rc not in [0, 2]
 
     - name: Collecter les faits
       ansible.builtin.setup:
