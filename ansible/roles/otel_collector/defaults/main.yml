@@ -1,0 +1,19 @@
+---
+# Collecteur OpenTelemetry (distribution « core ») : métriques de l'hôte poussées en
+# remote write vers le Prometheus de la VM grafana. Aucun port ouvert sur la VM (connexion sortante).
+otel_collector_version: "0.163.2"
+# Empreinte publiée avec la version (fichier .sha256 de la release GitHub)
+otel_collector_sha256: "af05bf893012c6da916771d2fb021958d7aaa604567a52586df95e41a1ff54f2"
+otel_collector_url: >-
+  https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v{{ otel_collector_version
+  }}/otelcol_{{ otel_collector_version }}_linux_amd64.deb
+
+# Récepteur remote write (nginx en HTTPS devant Prometheus), désigné par son adresse IP :
+# le certificat de la VM grafana contient cette adresse.
+otel_collector_endpoint: "https://{{ homelab_monitoring_ip }}:9443/api/v1/write"
+otel_collector_interval: 30s
+# CA interne sur le contrôleur : celle transmise par le runner dans un job CI, sinon celle de gestion.
+otel_collector_ca_src: >-
+  {{ lookup('ansible.builtin.env', 'CI_SERVER_TLS_CA_FILE')
+     | default(lookup('ansible.builtin.env', 'HOME') ~ '/homelab-ca/ca.crt', true) }}
+otel_collector_ca_path: /etc/otelcol/homelab-ca.crt

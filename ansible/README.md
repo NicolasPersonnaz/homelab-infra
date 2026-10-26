@@ -32,12 +32,19 @@ Pièges : un clone duplique les identités (machine-id, clés SSH de l'hôte) ; 
 | docker_engine | Docker Engine et plugins (buildx, compose) depuis le dépôt officiel signé |
 | internal_tls | Certificat serveur signé par la CA interne (CA sur le contrôleur, clé sur le serveur) ; le service écoute le handler `certificat interne modifié` |
 | defectdojo | DefectDojo par le Compose officiel épinglé, secrets générés sur la VM, nginx HTTPS. Voir [roles/defectdojo/README.md](roles/defectdojo/README.md) |
-
 | hardening | Durcissement Debian 13 (SSH, nftables, sysctl, modules, comptes, auditd, AIDE, rkhunter) : Lynis 67 → 85. Voir [roles/hardening/README.md](roles/hardening/README.md) |
+
+| otel_collector | Collecteur OpenTelemetry épinglé (paquet vérifié par empreinte) : métriques de l'hôte poussées vers la VM grafana, aucun port en écoute |
+| monitoring | VM grafana : Prometheus (paquet Debian, réception remote write), Grafana épinglé et provisionné, nginx HTTPS. Voir [roles/monitoring/README.md](roles/monitoring/README.md) |
+| lynis_report | Audit Lynis d'une VM et rapatriement du rapport sur le contrôleur |
+| defectdojo_import | Import des rapports dans DefectDojo (`reimport-scan`), jeton d'API lu dans Django sur la VM defectdojo, jamais transmis |
+| tbot | Bot Machine ID de la VM de gestion : jeton à usage unique saisi au prompt, identité renouvelée par le service `tbot` |
 
 Audit Lynis de référence (avant durcissement) : [docs/lynis-baseline.md](../docs/lynis-baseline.md).
 
-Playbooks lancés par la CI : `bootstrap.yml` (VM neuves, SSH direct avec clé jetable, jonction Teleport) puis `homelab.yml` (toutes les VM sauf `gitlab`, à travers Teleport). Voir `ci/deploy.sh`.
+Playbooks lancés par la CI : `bootstrap.yml` (VM neuves, SSH direct avec clé jetable, jonction Teleport) puis `homelab.yml` (toutes les VM sauf `gitlab`, à travers Teleport), voir `ci/deploy.sh` ; `lynis-audit.yml` (toutes les VM `env=homelab`), voir `ci/audit.sh`.
+
+Playbooks lancés depuis `gestion` (la CA interne y est) : `gitlab.yml`, `defectdojo.yml`, `grafana.yml`, `gestion.yml`, `playbooks/tbot.yml`.
 
 ## Utilisation
 

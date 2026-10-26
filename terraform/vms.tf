@@ -28,6 +28,13 @@ variable "vms" {
       memory    = 2048
       disk_size = 20
     }
+    # Supervision : Prometheus (réception OTLP) et Grafana
+    grafana = {
+      ip        = "192.168.1.73"
+      cores     = 2
+      memory    = 2048
+      disk_size = 20
+    }
     # Développement du rôle de durcissement, comparé à l'audit de lynis-test
     hardening-test = {
       ip        = "192.168.1.72"

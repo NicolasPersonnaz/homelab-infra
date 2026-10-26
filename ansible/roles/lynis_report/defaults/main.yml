@@ -1,0 +1,5 @@
+---
+# Audit Lynis de la VM ; le rapport brut est rapatrié sur le contrôleur pour DefectDojo.
+lynis_report_file: /var/log/lynis-report.dat
+# Dossier du contrôleur où arrivent les rapports (<nom de la VM>.dat)
+lynis_report_dir: /tmp/lynis-reports

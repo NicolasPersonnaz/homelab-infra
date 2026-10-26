@@ -1,0 +1,9 @@
+---
+- name: Prometheus (réception remote write, stockage des métriques)
+  ansible.builtin.import_tasks: prometheus.yml
+
+- name: Grafana (tableaux de bord)
+  ansible.builtin.import_tasks: grafana.yml
+
+- name: Frontal HTTPS nginx
+  ansible.builtin.import_tasks: nginx.yml

@@ -1,0 +1,4 @@
+---
+tbot_proxy_server: "teleport.example.fr:443"
+tbot_tunnel_host: "teleport-tunnel.example.fr"
+tbot_tunnel_ip: "192.168.1.10"

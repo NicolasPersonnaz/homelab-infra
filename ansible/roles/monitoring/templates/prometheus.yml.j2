@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+# Les métriques des VM arrivent en remote write (poussées par les collecteurs) : aucune cible à
+# interroger, sauf Prometheus lui-même.
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["127.0.0.1:9090"]

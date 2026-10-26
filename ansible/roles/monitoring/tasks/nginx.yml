@@ -1,0 +1,48 @@
+---
+- name: Installer nginx (frontal HTTPS)
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Retirer le site par défaut de nginx
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: recharger nginx
+
+- name: Site HTTPS de la supervision
+  ansible.builtin.template:
+    src: nginx-monitoring.conf.j2
+    dest: /etc/nginx/sites-available/monitoring
+    owner: root
+    group: root
+    mode: "0644"
+  notify: recharger nginx
+
+- name: Activer le site de la supervision
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/monitoring
+    dest: /etc/nginx/sites-enabled/monitoring
+    state: link
+  notify: recharger nginx
+
+- name: Activer nginx
+  ansible.builtin.systemd:
+    name: nginx
+    enabled: true
+    state: started
+
+- name: Appliquer les configurations en attente
+  ansible.builtin.meta: flush_handlers
+
+- name: Vérifier que Grafana répond en HTTPS avec un certificat valide
+  ansible.builtin.uri:
+    url: "https://{{ monitoring_ip }}/api/health"
+    ca_path: /usr/local/share/ca-certificates/homelab-ca.crt
+    status_code: 200
+  register: monitoring_grafana_health
+  until: monitoring_grafana_health.status == 200
+  retries: 30
+  delay: 5

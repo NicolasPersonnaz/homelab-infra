@@ -1,0 +1,9 @@
+---
+- name: Recharger systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Redémarrer tbot
+  ansible.builtin.systemd:
+    name: tbot
+    state: restarted

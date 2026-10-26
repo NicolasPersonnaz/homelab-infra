@@ -21,3 +21,35 @@ terraform_env() {
   export TF_HTTP_PASSWORD="$CI_JOB_TOKEN"
   export TF_IN_AUTOMATION=1
 }
+
+# Identité Teleport du bot CI, sans secret : jonction « gitlab » par le jeton OIDC du job.
+# Usage : teleport_identity <dossier> (le fichier de configuration et l'identité y sont écrits)
+teleport_identity() {
+  local dir=$1
+  mkdir -p "$dir"
+  cat > "$dir/tbot.yaml" <<EOF
+version: v2
+proxy_server: ${TELEPORT_PROXY}
+oneshot: true
+onboarding:
+  join_method: gitlab
+  token: homelab-ci-gitlab
+storage:
+  type: memory
+outputs:
+  - type: identity
+    destination:
+      type: directory
+      path: ${dir}/out
+EOF
+  tbot start -c "$dir/tbot.yaml"
+}
+
+# Le dossier du dépôt est accessible en écriture à tous dans le conteneur :
+# Ansible ignorerait ansible.cfg, on passe donc les réglages par l'environnement.
+ansible_env() {
+  export ANSIBLE_ROLES_PATH="$PWD/ansible/roles"
+  export ANSIBLE_REMOTE_USER=ansible
+  export ANSIBLE_PYTHON_INTERPRETER=auto_silent
+  export ANSIBLE_FORCE_COLOR=1
+}

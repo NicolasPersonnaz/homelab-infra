@@ -104,6 +104,9 @@ deploy:
   stage: deploy
   needs: [terraform-plan]
   rules:
+    # Pipeline programmé : audit seulement, jamais de déploiement
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"
       when: manual
   resource_group: homelab
@@ -112,3 +115,21 @@ deploy:
       aud: $TELEPORT_CLUSTER
   script:
     - bash ci/deploy.sh
+
+# ---------------------------------------------------
+# AUDIT : Lynis sur toutes les VM env=homelab, rapports dans DefectDojo
+# ---------------------------------------------------
+# Après chaque déploiement, et chaque semaine par un pipeline programmé (CI/CD > Schedules).
+lynis-audit:
+  stage: deploy
+  extends: .protected-main
+  needs:
+    - job: deploy
+      optional: true
+  resource_group: homelab
+  id_tokens:
+    TBOT_GITLAB_JWT:
+      aud: $TELEPORT_CLUSTER
+  script:
+    - bash ci/audit.sh
+

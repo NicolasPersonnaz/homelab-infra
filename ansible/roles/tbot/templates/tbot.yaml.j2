@@ -1,0 +1,17 @@
+version: v2
+proxy_server: {{ tbot_proxy_server }}
+onboarding:
+  join_method: token
+  token: {{ tbot_join_token_file }}
+{% if tbot_ca_pin %}
+  ca_pins:
+    - {{ tbot_ca_pin }}
+{% endif %}
+storage:
+  type: directory
+  path: {{ tbot_state_dir }}
+outputs:
+  - type: identity
+    destination:
+      type: directory
+      path: {{ tbot_output_dir }}

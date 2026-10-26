@@ -27,6 +27,9 @@ table inet homelab {
 {% for source in hardening_ssh_sources %}
         ip saddr {{ source }} tcp dport 22 accept
 {% endfor %}
+{% for rule in hardening_firewall_restricted_ports if rule.sources %}
+        ip saddr { {{ rule.sources | join(', ') }} } tcp dport {{ rule.port }} accept
+{% endfor %}
 {% if hardening_firewall_tcp_ports %}
         tcp dport { {{ hardening_firewall_tcp_ports | join(', ') }} } accept
 {% endif %}

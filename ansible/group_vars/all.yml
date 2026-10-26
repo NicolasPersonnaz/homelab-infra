@@ -8,3 +8,6 @@ users_list:
 # Seules adresses autorisées en SSH direct sur les VM gérées par Teleport (la VM de gestion)
 homelab_admin_sources:
   - 192.168.1.42
+
+# VM de supervision (même adresse que dans terraform/vms.tf) : destination des collecteurs OTel
+homelab_monitoring_ip: 192.168.1.73

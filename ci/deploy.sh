@@ -12,14 +12,9 @@ set -euo pipefail
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-tbot_dir="$work/tbot"
+tbot_dir="$work/tbot/out"
 
-# Le dossier du dépôt est accessible en écriture à tous dans le conteneur :
-# Ansible ignorerait ansible.cfg, on passe donc les réglages par l'environnement.
-export ANSIBLE_ROLES_PATH="$PWD/ansible/roles"
-export ANSIBLE_REMOTE_USER=ansible
-export ANSIBLE_PYTHON_INTERPRETER=auto_silent
-export ANSIBLE_FORCE_COLOR=1
+ansible_env
 
 teleport_vars=(
   -e "teleport_node_proxy_server=$TELEPORT_PROXY"
@@ -31,22 +26,7 @@ trust_gitlab_ca
 terraform_env
 
 echo "== 1. Identité Teleport du bot (jonction gitlab, sans secret)"
-cat > "$work/tbot.yaml" <<EOF
-version: v2
-proxy_server: ${TELEPORT_PROXY}
-oneshot: true
-onboarding:
-  join_method: gitlab
-  token: homelab-ci-gitlab
-storage:
-  type: memory
-outputs:
-  - type: identity
-    destination:
-      type: directory
-      path: ${tbot_dir}
-EOF
-tbot start -c "$work/tbot.yaml"
+teleport_identity "$work/tbot"
 tsh_bot() { tsh -i "$tbot_dir/identity" --proxy="$TELEPORT_PROXY" "$@"; }
 
 echo "== 2. Clé SSH jetable (détruite avec le conteneur)"
@@ -133,7 +113,10 @@ print("[homelab]")
 for name in sorted(vms):
     print(f"{name} ansible_host={name}.{cluster}")
 PY
-via_teleport=(-i "$work/homelab.ini" -e "ansible_ssh_common_args='-F $tbot_dir/ssh_config'")
+# Adresses de toutes les VM : seules sources autorisées à envoyer des métriques à grafana
+python3 -c 'import json, sys; print(json.dumps({"homelab_vm_ips": sorted(json.load(open(sys.argv[1])).values())}))' \
+  "$work/vms.json" > "$work/homelab-vars.json"
+via_teleport=(-i "$work/homelab.ini" -e "ansible_ssh_common_args='-F $tbot_dir/ssh_config'" -e "@$work/homelab-vars.json")
 ansible-playbook "${via_teleport[@]}" ansible/homelab.yml "${teleport_vars[@]}"
 
 echo "== 8. Idempotence : le second passage ne doit rien changer"

@@ -1,0 +1,35 @@
+---
+# Paquet Debian : mises à jour de sécurité suivies par Debian, sans dépôt tiers.
+# Sans les recommandations (node-exporter) : les métriques viennent des collecteurs OTel.
+- name: Installer Prometheus
+  ansible.builtin.apt:
+    name: prometheus
+    state: present
+    install_recommends: false
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Options de Prometheus (écoute locale, récepteur remote write, rétention)
+  ansible.builtin.template:
+    src: prometheus.default.j2
+    dest: /etc/default/prometheus
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Redémarrer prometheus
+
+- name: Configuration de Prometheus
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: /etc/prometheus/prometheus.yml
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/bin/promtool check config %s
+  notify: Redémarrer prometheus
+
+- name: Activer Prometheus
+  ansible.builtin.systemd:
+    name: prometheus
+    enabled: true
+    state: started

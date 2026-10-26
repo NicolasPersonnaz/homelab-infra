@@ -1,0 +1,67 @@
+---
+- name: Vérifier qu'il y a des rapports à importer
+  ansible.builtin.assert:
+    that: defectdojo_import_files | length > 0
+    fail_msg: "Aucun rapport à importer"
+
+- name: Installer curl
+  ansible.builtin.apt:
+    name: curl
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Script d'import
+  ansible.builtin.template:
+    src: defectdojo-reimport.sh.j2
+    dest: /usr/local/sbin/defectdojo-reimport
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Dossier des rapports en attente
+  ansible.builtin.file:
+    path: "{{ defectdojo_import_dir }}/imports"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+# Extension .txt : l'API refuse « .dat » alors que le parseur Lynis attend ce contenu.
+- name: Déposer les rapports
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ defectdojo_import_dir }}/imports/{{ item | basename | splitext | first }}.txt"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ defectdojo_import_files }}"
+  loop_control:
+    label: "{{ item | basename | splitext | first }}"
+
+- name: Importer les rapports (reimport, contexte créé si besoin)
+  ansible.builtin.command:
+    argv:
+      - /usr/local/sbin/defectdojo-reimport
+      - "{{ defectdojo_import_dir }}/imports/{{ item | basename | splitext | first }}.txt"
+      - "{{ item | basename | splitext | first }}"
+  loop: "{{ defectdojo_import_files }}"
+  loop_control:
+    label: "{{ item | basename | splitext | first }}"
+  register: defectdojo_import_result
+  changed_when: true
+
+- name: Résumé des imports
+  ansible.builtin.debug:
+    msg: "{{ item.item | basename | splitext | first }} : {{ item.stdout }}"
+  loop: "{{ defectdojo_import_result.results }}"
+  loop_control:
+    label: "{{ item.item | basename | splitext | first }}"
+
+- name: Retirer les rapports importés
+  ansible.builtin.file:
+    path: "{{ defectdojo_import_dir }}/imports/{{ item | basename | splitext | first }}.txt"
+    state: absent
+  loop: "{{ defectdojo_import_files }}"
+  loop_control:
+    label: "{{ item | basename | splitext | first }}"

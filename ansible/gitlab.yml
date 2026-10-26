@@ -17,3 +17,5 @@
     - gitlab_runner
     - ci_image
     - teleport_node
+    - otel_collector
+    - hardening

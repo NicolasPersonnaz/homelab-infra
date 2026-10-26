@@ -1,0 +1,14 @@
+---
+# VM de supervision : Prometheus (paquet Debian) reçoit les métriques des collecteurs OTel,
+# Grafana (dépôt officiel, version épinglée) les affiche. nginx fait le HTTPS des deux.
+# Même domaine que GitLab, repris de l'inventaire (rien de réel dans le dépôt)
+monitoring_hostname: "grafana.{{ hostvars[groups['gitlab'][0]]['gitlab_hostname'].split('.', 1)[1] }}"
+monitoring_ip: "{{ ansible_default_ipv4.address }}"
+monitoring_tls_dir: /etc/ssl/homelab
+
+monitoring_prometheus_retention: 30d
+# Réception remote write en HTTPS ; le pare-feu (rôle hardening) ne l'ouvre qu'aux VM du homelab.
+monitoring_remote_write_port: 9443
+
+monitoring_grafana_version: "13.2.4"
+monitoring_grafana_apt_channel: stable

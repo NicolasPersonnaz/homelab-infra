@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# Usage : defectdojo-reimport <rapport> <produit>
+# Le jeton d'API de l'admin est lu dans Django puis passé à curl par l'entrée standard :
+# il n'apparaît ni à l'écran, ni dans la liste des processus, ni dans un fichier.
+set -euo pipefail
+report=$1
+product=$2
+
+cd {{ defectdojo_import_dir }}
+# Nom public de DefectDojo, pris dans sa configuration (aucun domaine dans le dépôt)
+host=$(sed -n 's/^DD_ALLOWED_HOSTS=//p' config.env | cut -d, -f1)
+
+token=$(docker compose --env-file config.env --env-file secrets.env exec -T uwsgi \
+  python manage.py shell -c "
+from django.contrib.auth.models import User
+from rest_framework.authtoken.models import Token
+print(Token.objects.get_or_create(user=User.objects.get(username='admin'))[0].key)
+" | tail -n 1)
+
+response=$(mktemp)
+trap 'rm -f "$response"' EXIT
+code=$(printf 'header = "Authorization: Token %s"\n' "$token" | curl -sS -K - \
+  -o "$response" -w '%{http_code}' \
+  -F "file=@${report}" \
+  -F "scan_type={{ defectdojo_import_scan_type }}" \
+  -F "product_type_name={{ defectdojo_import_product_type }}" \
+  -F "product_name=${product}" \
+  -F "engagement_name={{ defectdojo_import_engagement }}" \
+  -F "test_title={{ defectdojo_import_test_title }}" \
+  -F "auto_create_context=true" \
+  "https://${host}/api/v2/reimport-scan/")
+
+if [[ $code != 201 ]]; then
+  echo "ERREUR : HTTP ${code}" >&2
+  cat "$response" >&2
+  exit 1
+fi
+
+# Réponse résumée : identifiant du test et statistiques renvoyées par l'API
+python3 - "$response" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1]))
+print(f"test {r.get('test')} :", json.dumps(r.get("statistics", {}).get("after", {})))
+PY

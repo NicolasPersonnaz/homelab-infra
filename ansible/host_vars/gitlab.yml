@@ -1,0 +1,7 @@
+---
+# GitLab : HTTPS (et redirection HTTP) ouverts au LAN ; git en SSH depuis gestion seulement
+hardening_firewall_tcp_ports: [80, 443]
+# Dépôts, base PostgreSQL, journaux : changent en permanence
+hardening_aide_exclusions:
+  - /var/opt/gitlab
+  - /var/log/gitlab

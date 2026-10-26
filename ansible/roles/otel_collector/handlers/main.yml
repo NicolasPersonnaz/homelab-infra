@@ -1,0 +1,5 @@
+---
+- name: Redémarrer otelcol
+  ansible.builtin.systemd:
+    name: otelcol
+    state: restarted

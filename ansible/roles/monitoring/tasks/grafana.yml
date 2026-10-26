@@ -1,0 +1,108 @@
+---
+- name: Dossier des clés APT
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Clé du dépôt Grafana
+  ansible.builtin.get_url:
+    url: https://apt.grafana.com/gpg.key
+    dest: /etc/apt/keyrings/grafana.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Dépôt Grafana
+  ansible.builtin.deb822_repository:
+    name: grafana
+    types: deb
+    uris: https://apt.grafana.com
+    suites: "{{ monitoring_grafana_apt_channel }}"
+    components: main
+    signed_by: /etc/apt/keyrings/grafana.asc
+    state: present
+
+- name: Installer Grafana (version épinglée)
+  ansible.builtin.apt:
+    name: "grafana={{ monitoring_grafana_version }}"
+    state: present
+    update_cache: true
+    allow_change_held_packages: true
+  notify: Redémarrer grafana
+
+- name: Bloquer les mises à jour automatiques de Grafana
+  ansible.builtin.dpkg_selections:
+    name: grafana
+    selection: hold
+
+# Lu par Grafana au premier démarrage seulement (création du compte admin) : généré sur la VM,
+# jamais transmis ni affiché.
+- name: Générer le mot de passe de l'admin Grafana (une seule fois)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    umask 027
+    openssl rand -base64 24 | tr -d '/+=' > /etc/grafana/admin-password
+  args:
+    creates: /etc/grafana/admin-password
+    executable: /bin/bash
+  no_log: true
+
+- name: Droits du mot de passe de l'admin
+  ansible.builtin.file:
+    path: /etc/grafana/admin-password
+    owner: root
+    group: grafana
+    mode: "0640"
+
+- name: Configuration de Grafana
+  ansible.builtin.template:
+    src: grafana.ini.j2
+    dest: /etc/grafana/grafana.ini
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify: Redémarrer grafana
+
+- name: Source de données Prometheus (provisionnée)
+  ansible.builtin.template:
+    src: datasource.yml.j2
+    dest: /etc/grafana/provisioning/datasources/homelab.yml
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify: Redémarrer grafana
+
+- name: Fournisseur des tableaux de bord
+  ansible.builtin.template:
+    src: dashboards.yml.j2
+    dest: /etc/grafana/provisioning/dashboards/homelab.yml
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify: Redémarrer grafana
+
+- name: Dossier des tableaux de bord
+  ansible.builtin.file:
+    path: /var/lib/grafana/dashboards
+    state: directory
+    owner: root
+    group: grafana
+    mode: "0750"
+
+# Relu périodiquement par Grafana : pas de redémarrage nécessaire
+- name: Tableau de bord des VM du homelab
+  ansible.builtin.copy:
+    src: homelab-hosts.json
+    dest: /var/lib/grafana/dashboards/homelab-hosts.json
+    owner: root
+    group: grafana
+    mode: "0640"
+
+- name: Activer Grafana
+  ansible.builtin.systemd:
+    name: grafana-server
+    enabled: true
+    state: started

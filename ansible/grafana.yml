@@ -1,0 +1,12 @@
+---
+# Lancé depuis la VM de gestion (la CA interne y est) : la CI s'occupe de la baseline,
+# du durcissement et du collecteur (homelab.yml), ce playbook installe la supervision.
+- name: Supervision (Prometheus, Grafana, HTTPS par la CA interne)
+  hosts: grafana
+  become: true
+  roles:
+    - role: internal_tls
+      vars:
+        internal_tls_hostname: "{{ monitoring_hostname }}"
+        internal_tls_ip: "{{ monitoring_ip }}"
+    - monitoring

@@ -4,6 +4,10 @@
 hardening_ssh_sources: "{{ homelab_admin_sources }}"
 # Ports TCP ouverts à tout le LAN (services de la VM), ex. [80, 443]
 hardening_firewall_tcp_ports: []
+# Ports TCP ouverts à certaines adresses seulement, ex. [{ port: 9443, sources: [192.168.1.70] }]
+hardening_firewall_restricted_ports: []
+# Dossiers hors du contrôle d'intégrité AIDE (données qui changent en permanence)
+hardening_aide_exclusions: []
 
 hardening_packages:
   - nftables

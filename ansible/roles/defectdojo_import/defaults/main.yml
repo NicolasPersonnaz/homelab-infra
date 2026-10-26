@@ -1,0 +1,11 @@
+---
+# Import de rapports dans DefectDojo, depuis la VM defectdojo elle-même : le jeton d'API
+# est lu dans Django au moment de l'import et ne quitte jamais la VM.
+defectdojo_import_dir: /opt/defectdojo
+# Rapports à importer, sur le contrôleur : <nom de la VM>.dat (le nom devient le produit)
+defectdojo_import_files: []
+defectdojo_import_scan_type: Lynis Scan
+defectdojo_import_product_type: Homelab
+# « reimport » met à jour ce test à chaque passage : failles corrigées fermées, nouvelles ajoutées.
+defectdojo_import_engagement: Audit Lynis continu (CI)
+defectdojo_import_test_title: Lynis (CI)

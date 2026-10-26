@@ -1,0 +1,79 @@
+---
+- name: Vérifier l'architecture (paquet amd64 uniquement)
+  ansible.builtin.assert:
+    that: ansible_architecture == "x86_64"
+    fail_msg: "Le paquet otelcol téléchargé est pour amd64"
+
+- name: Version installée du collecteur
+  ansible.builtin.command: dpkg-query -W -f=${Version} otelcol
+  register: otel_collector_installed
+  changed_when: false
+  failed_when: false
+  # Lecture seule : exécutée aussi en --check
+  check_mode: false
+
+# En --check, rien n'est téléchargé ni installé : la suite (utilisateur otel, validation de la
+# configuration par le binaire) ne peut pas être simulée sur une VM qui n'a pas encore le collecteur.
+- name: Simulation sur une VM sans collecteur
+  ansible.builtin.debug:
+    msg: "otelcol absent : installation et configuration à faire au passage réel"
+  when: ansible_check_mode and otel_collector_installed.rc != 0
+
+- name: Arrêter le rôle en simulation sur une VM sans collecteur
+  ansible.builtin.meta: end_role
+  when: ansible_check_mode and otel_collector_installed.rc != 0
+
+- name: Dossier du paquet téléchargé
+  ansible.builtin.file:
+    path: /var/cache/otelcol
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Télécharger le collecteur (empreinte vérifiée)
+  ansible.builtin.get_url:
+    url: "{{ otel_collector_url }}"
+    dest: "/var/cache/otelcol/otelcol_{{ otel_collector_version }}_amd64.deb"
+    checksum: "sha256:{{ otel_collector_sha256 }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+# Paquet hors dépôt APT : installé seulement s'il manque ou si la version épinglée change.
+- name: Installer le collecteur (version épinglée)
+  ansible.builtin.apt:
+    deb: "/var/cache/otelcol/otelcol_{{ otel_collector_version }}_amd64.deb"
+    allow_change_held_packages: true
+  when: otel_collector_installed.stdout != otel_collector_version
+  notify: Redémarrer otelcol
+
+- name: Bloquer les mises à jour du collecteur
+  ansible.builtin.dpkg_selections:
+    name: otelcol
+    selection: hold
+
+- name: CA interne (vérification du certificat du récepteur)
+  ansible.builtin.copy:
+    src: "{{ otel_collector_ca_src }}"
+    dest: "{{ otel_collector_ca_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Redémarrer otelcol
+
+- name: Configuration du collecteur
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: /etc/otelcol/config.yaml
+    owner: root
+    group: otel
+    mode: "0640"
+    validate: /usr/bin/otelcol validate --config=%s
+  notify: Redémarrer otelcol
+
+- name: Activer le collecteur
+  ansible.builtin.systemd:
+    name: otelcol
+    enabled: true
+    state: started

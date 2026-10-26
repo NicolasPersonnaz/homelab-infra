@@ -1,0 +1,12 @@
+---
+# Grafana : HTTPS (et redirection HTTP) ouverts au LAN
+hardening_firewall_tcp_ports: [80, 443]
+# Réception des métriques : seulement depuis les VM du homelab (liste fournie par la CI, sortie Terraform)
+hardening_firewall_restricted_ports:
+  - port: 9443
+    sources: "{{ homelab_vm_ips | default([]) }}"
+# Métriques, base et journaux de Grafana : changent en permanence
+hardening_aide_exclusions:
+  - /var/lib/prometheus
+  - /var/lib/grafana
+  - /var/log/grafana

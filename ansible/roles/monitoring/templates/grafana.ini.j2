@@ -1,0 +1,30 @@
+# {{ ansible_managed }}
+# Seuls les réglages qui changent des valeurs par défaut de Grafana.
+[server]
+# Écoute locale : nginx fait le HTTPS
+http_addr = 127.0.0.1
+http_port = 3000
+domain = {{ monitoring_hostname }}
+root_url = https://{{ monitoring_hostname }}/
+
+[security]
+admin_user = admin
+# Lu dans un fichier généré sur la VM (variable d'expansion de Grafana)
+admin_password = $__file{/etc/grafana/admin-password}
+cookie_secure = true
+disable_gravatar = true
+
+[users]
+allow_sign_up = false
+
+[auth.anonymous]
+enabled = false
+
+# Aucune connexion sortante non demandée
+[analytics]
+reporting_enabled = false
+check_for_updates = false
+check_for_plugin_updates = false
+
+[news]
+news_feed_enabled = false

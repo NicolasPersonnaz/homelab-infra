@@ -1,0 +1,126 @@
+---
+- name: Dépendances
+  ansible.builtin.apt:
+    name: [curl, gnupg]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Clé du dépôt Teleport
+  ansible.builtin.get_url:
+    url: https://apt.releases.teleport.dev/gpg
+    dest: /usr/share/keyrings/teleport-archive-keyring.asc
+    mode: "0644"
+
+- name: Dépôt Teleport
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]
+      https://apt.releases.teleport.dev/{{ ansible_distribution | lower }}
+      {{ ansible_distribution_release }} {{ tbot_apt_channel }}
+    filename: teleport
+    state: present
+
+- name: Installer teleport (fournit tbot)
+  ansible.builtin.apt:
+    name: teleport
+    state: present
+    update_cache: true
+
+- name: Utilisateur système du bot
+  ansible.builtin.user:
+    name: "{{ tbot_user }}"
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+
+- name: Répertoire de travail du bot
+  ansible.builtin.file:
+    path: /var/lib/tbot
+    state: directory
+    owner: "{{ tbot_user }}"
+    group: "{{ tbot_user }}"
+    mode: "0700"
+
+- name: Répertoire d'état du bot
+  ansible.builtin.file:
+    path: "{{ tbot_state_dir }}"
+    state: directory
+    owner: "{{ tbot_user }}"
+    group: "{{ tbot_user }}"
+    mode: "0700"
+
+- name: Répertoire de sortie (ssh_config, identité)
+  ansible.builtin.file:
+    path: "{{ tbot_output_dir }}"
+    state: directory
+    owner: "{{ tbot_user }}"
+    group: "{{ tbot_user }}"
+    mode: "0750"
+
+- name: Identité du bot déjà présente ?
+  ansible.builtin.find:
+    paths: "{{ tbot_state_dir }}"
+    recurse: true
+  register: tbot_state_files
+
+- name: Refuser de continuer sans identité ni jeton
+  ansible.builtin.fail:
+    msg: "Aucune identité de bot et aucun jeton. Créer un jeton avec 'tctl bots add' puis le saisir au prompt."
+  when: tbot_state_files.matched == 0 and (tbot_join_token | length) == 0
+
+- name: Déposer le jeton à usage unique
+  ansible.builtin.copy:
+    content: "{{ tbot_join_token }}\n"
+    dest: "{{ tbot_join_token_file }}"
+    owner: "{{ tbot_user }}"
+    group: "{{ tbot_user }}"
+    mode: "0600"
+  when: tbot_state_files.matched == 0
+  no_log: true
+
+- name: Résolution locale du tunnel Teleport (accès depuis le LAN)
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '\s{{ tbot_tunnel_host | regex_escape }}$'
+    line: "{{ tbot_tunnel_ip }} {{ tbot_tunnel_host }}"
+  when: (tbot_tunnel_ip | length > 0) and (tbot_tunnel_host | length > 0)
+
+- name: Configuration de tbot
+  ansible.builtin.template:
+    src: tbot.yaml.j2
+    dest: /etc/tbot.yaml
+    owner: root
+    group: "{{ tbot_user }}"
+    mode: "0640"
+  notify: Redémarrer tbot
+
+- name: Service systemd de tbot
+  ansible.builtin.template:
+    src: tbot.service.j2
+    dest: /etc/systemd/system/tbot.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Recharger systemd
+    - Redémarrer tbot
+
+- name: Appliquer les changements avant de continuer
+  ansible.builtin.meta: flush_handlers
+
+- name: Activer et démarrer tbot
+  ansible.builtin.systemd:
+    name: tbot
+    enabled: true
+    state: started
+
+- name: Attendre le ssh_config généré par tbot
+  ansible.builtin.wait_for:
+    path: "{{ tbot_output_dir }}/ssh_config"
+    timeout: 60
+
+- name: Supprimer le jeton consommé
+  ansible.builtin.file:
+    path: "{{ tbot_join_token_file }}"
+    state: absent

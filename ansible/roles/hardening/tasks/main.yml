@@ -134,18 +134,20 @@
   loop: [/etc/issue, /etc/issue.net]
 
 # --- Intégrité (FINT-4350, HRDN-7230) ---
-# Sur un hôte Docker, images et volumes changent en permanence : hors du contrôle d'intégrité.
-- name: Exclure les données Docker d'AIDE
+# Données qui changent en permanence (Docker, dépôts et bases d'une application) :
+# hors du contrôle d'intégrité, sinon chaque vérification serait pleine de faux positifs.
+- name: Exclusions d'AIDE
   ansible.builtin.copy:
     dest: /etc/aide/aide.conf.d/99_aide_homelab_docker
     content: |
       # Géré par Ansible (rôle hardening)
-      !/var/lib/docker
-      !/var/lib/containerd
+      {% for path in (['/var/lib/docker', '/var/lib/containerd'] if hardening_firewall_docker else []) + hardening_aide_exclusions %}
+      !{{ path }}
+      {% endfor %}
     owner: root
     group: root
     mode: "0644"
-  when: hardening_firewall_docker
+  when: hardening_firewall_docker or hardening_aide_exclusions | length > 0
 
 # Bases créées une seule fois : elles représentent l'état de référence du système.
 - name: Base de référence AIDE

@@ -1,0 +1,58 @@
+# {{ ansible_managed }}
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{ monitoring_hostname }};
+    return 301 https://$host$request_uri;
+}
+
+# Grafana (tout le LAN)
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name {{ monitoring_hostname }} {{ monitoring_ip }};
+
+    ssl_certificate     {{ monitoring_tls_dir }}/{{ monitoring_hostname }}.crt;
+    ssl_certificate_key {{ monitoring_tls_dir }}/{{ monitoring_hostname }}.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+
+    # Grafana Live (WebSocket)
+    location /api/live/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+    }
+}
+
+# Réception des collecteurs : seule l'API d'écriture de Prometheus est exposée.
+# Le pare-feu n'ouvre ce port qu'aux VM du homelab.
+server {
+    listen {{ monitoring_remote_write_port }} ssl;
+    listen [::]:{{ monitoring_remote_write_port }} ssl;
+    server_name _;
+
+    ssl_certificate     {{ monitoring_tls_dir }}/{{ monitoring_hostname }}.crt;
+    ssl_certificate_key {{ monitoring_tls_dir }}/{{ monitoring_hostname }}.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location = /api/v1/write {
+        limit_except POST {
+            deny all;
+        }
+        proxy_pass http://127.0.0.1:9090;
+    }
+
+    location / {
+        return 404;
+    }
+}

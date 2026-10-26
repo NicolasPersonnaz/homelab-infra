@@ -1,0 +1,11 @@
+---
+- name: Bot Machine ID sur la VM de gestion
+  hosts: gestion
+  become: true
+  vars_prompt:
+    - name: tbot_join_token
+      prompt: "Jeton à usage unique (vide si le bot est déjà enrôlé)"
+      private: true
+      default: ""
+  roles:
+    - tbot

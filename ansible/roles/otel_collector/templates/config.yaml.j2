@@ -1,0 +1,55 @@
+# {{ ansible_managed }}
+receivers:
+  host_metrics:
+    collection_interval: {{ otel_collector_interval }}
+    scrapers:
+      cpu: {}
+      load: {}
+      memory:
+        metrics:
+          # Mémoire totale : dénominateur du pourcentage utilisé
+          system.memory.limit:
+            enabled: true
+      disk: {}
+      network: {}
+      filesystem:
+        # Systèmes de fichiers virtuels et couches des conteneurs : sans intérêt pour l'espace disque
+        exclude_fs_types:
+          fs_types: [autofs, binfmt_misc, bpf, cgroup2, configfs, debugfs, devpts, devtmpfs, fusectl, hugetlbfs, mqueue, nsfs, overlay, proc, pstore, securityfs, squashfs, sysfs, tmpfs, tracefs]
+          match_type: strict
+        exclude_mount_points:
+          mount_points: ["/var/lib/docker/.*", "/run/.*"]
+          match_type: regexp
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 100
+  # Prometheus déduit job et instance de service.name et service.instance.id
+  resource:
+    attributes:
+      - key: service.name
+        value: hostmetrics
+        action: upsert
+      - key: service.instance.id
+        value: "{{ inventory_hostname }}"
+        action: upsert
+  batch: {}
+
+exporters:
+  # Le Prometheus de Debian 13 (2.53) n'a pas de récepteur OTLP : remote write, qu'il sait recevoir
+  prometheus_remote_write:
+    endpoint: "{{ otel_collector_endpoint }}"
+    tls:
+      ca_file: {{ otel_collector_ca_path }}
+
+service:
+  pipelines:
+    metrics:
+      receivers: [host_metrics]
+      processors: [memory_limiter, resource, batch]
+      exporters: [prometheus_remote_write]
+  # Pas de métriques internes exposées : aucun port en écoute sur la VM
+  telemetry:
+    metrics:
+      level: none

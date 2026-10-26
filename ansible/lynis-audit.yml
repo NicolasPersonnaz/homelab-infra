@@ -1,0 +1,18 @@
+---
+# Audit Lynis de toutes les VM du homelab, rapports importés dans DefectDojo.
+# Lancé par la CI (ci/audit.sh) à travers Teleport, après un déploiement ou chaque semaine.
+# -e lynis_report_dir=<dossier> obligatoire : dossier du contrôleur, partagé par les deux jeux.
+- name: Audit Lynis des VM
+  hosts: homelab
+  become: true
+  roles:
+    - lynis_report
+
+- name: Import des rapports dans DefectDojo
+  hosts: defectdojo
+  become: true
+  roles:
+    - role: defectdojo_import
+      vars:
+        # Rapports effectivement rapatriés (une VM en échec n'empêche pas l'import des autres)
+        defectdojo_import_files: "{{ query('ansible.builtin.fileglob', lynis_report_dir ~ '/*.dat') }}"

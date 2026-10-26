@@ -1,0 +1,12 @@
+---
+tbot_proxy_server: "teleport.example.fr:443"   # adresse de ton proxy
+tbot_apt_channel: "stable/v18"
+tbot_binary: /usr/local/bin/tbot               # vérifier avec: which tbot
+tbot_user: tbot
+tbot_state_dir: /var/lib/tbot/state
+tbot_output_dir: /opt/machine-id
+tbot_join_token_file: /var/lib/tbot/join-token
+tbot_ca_pin: ""                                # seulement si le certificat du proxy n'est pas public
+tbot_join_token: ""                            # saisi à l'exécution, jamais stocké
+tbot_tunnel_host: ""
+tbot_tunnel_ip: ""

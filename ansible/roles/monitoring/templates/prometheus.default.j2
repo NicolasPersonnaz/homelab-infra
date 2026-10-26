@@ -1,0 +1,4 @@
+# {{ ansible_managed }}
+# Écoute locale seulement : nginx expose l'API d'écriture (remote write) en HTTPS, Grafana lit en local.
+# Le paquet Debian (2.53) ne connaît pas l'option otlp-write-receiver : vérifié, « Unknown option ».
+ARGS="--web.listen-address=127.0.0.1:9090 --web.enable-remote-write-receiver --storage.tsdb.retention.time={{ monitoring_prometheus_retention }}"

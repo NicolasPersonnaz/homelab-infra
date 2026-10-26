@@ -1,0 +1,22 @@
+---
+# Déjà présent sur les VM durcies ; lynis-test (référence non durcie) peut ne pas l'avoir.
+- name: Installer Lynis
+  ansible.builtin.apt:
+    name: lynis
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# Même commande que les audits de référence (docs/lynis-baseline.md) : résultats comparables.
+- name: Audit Lynis
+  ansible.builtin.command: >-
+    lynis audit system --quick --no-colors --quiet
+    --report-file {{ lynis_report_file }}
+  # Produit un rapport, ne modifie pas la configuration du système
+  changed_when: false
+
+- name: Rapatrier le rapport sur le contrôleur
+  ansible.builtin.fetch:
+    src: "{{ lynis_report_file }}"
+    dest: "{{ lynis_report_dir }}/{{ inventory_hostname }}.dat"
+    flat: true

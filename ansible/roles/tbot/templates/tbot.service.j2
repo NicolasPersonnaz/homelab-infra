@@ -1,0 +1,17 @@
+[Unit]
+Description=Teleport Machine ID (tbot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ tbot_user }}
+Group={{ tbot_user }}
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ExecStart={{ tbot_binary }} start -c /etc/tbot.yaml
+
+[Install]
+WantedBy=multi-user.target
