@@ -37,9 +37,12 @@ if [[ $code != 201 ]]; then
   exit 1
 fi
 
-# Réponse résumée : identifiant du test et statistiques renvoyées par l'API
+# Réponse résumée : failles actives par sévérité après l'import (statistiques de l'API)
 python3 - "$response" <<'PY'
 import json, sys
 r = json.load(open(sys.argv[1]))
-print(f"test {r.get('test')} :", json.dumps(r.get("statistics", {}).get("after", {})))
+after = r.get("statistics", {}).get("after", {})
+counts = ", ".join(f"{sev} {after[sev]['active']}" for sev in ("critical", "high", "medium", "low")
+                   if after.get(sev, {}).get("active"))
+print(f"test {r.get('test')} : {after.get('total', {}).get('active', 0)} actives ({counts or 'aucune'})")
 PY

@@ -52,4 +52,6 @@ ansible_env() {
   export ANSIBLE_REMOTE_USER=ansible
   export ANSIBLE_PYTHON_INTERPRETER=auto_silent
   export ANSIBLE_FORCE_COLOR=1
+  # Une connexion par tâche au lieu de 3 ou 4 : chaque aller-retour traverse Teleport
+  export ANSIBLE_PIPELINING=1
 }

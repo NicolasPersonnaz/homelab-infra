@@ -49,15 +49,15 @@
     state: started
 
 # --- Noyau ---
+# Un seul fichier plutôt qu'une boucle sysctl : un aller-retour au lieu d'un par paramètre.
 - name: Paramètres noyau et réseau
-  ansible.posix.sysctl:
-    name: "{{ item.key }}"
-    value: "{{ item.value }}"
-    sysctl_file: /etc/sysctl.d/90-durcissement.conf
-    reload: true
-  loop: "{{ hardening_sysctl | dict2items }}"
-  loop_control:
-    label: "{{ item.key }}"
+  ansible.builtin.template:
+    src: sysctl-durcissement.conf.j2
+    dest: /etc/sysctl.d/90-durcissement.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Appliquer les paramètres noyau
 
 - name: Bloquer les modules noyau inutiles
   ansible.builtin.copy:
