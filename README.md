@@ -152,12 +152,15 @@ L'état est hébergé par GitLab. Ne lance jamais `apply` en même temps que la 
 - Durcissement : Lynis **67 → 85**, DefectDojo 2 Medium et 44 Low → 0 Medium et 18 Low (même image, même version de Lynis).
 - Job `deploy` n°121 : `defectdojo` durcie (`changed=18`), puis `changed=0` sur toutes les VM au second passage.
 
-Supervision (VM `grafana`, collecteurs OTel) et audit continu (`lynis-audit`) : **en cours de déploiement**. Les résultats seront ajoutés une fois observés.
+- Supervision : VM `grafana` créée par le pipeline 23 (job `deploy` en 14 min 20), puis `grafana.yml` (`failed=0`, second passage `changed=0`). Les 5 VM envoient leurs métriques. Le port de réception n'est joignable que depuis les VM. Détails dans [le rôle monitoring](ansible/roles/monitoring/README.md).
+- Audit continu (job `lynis-audit` du pipeline 23) : 5 VM auditées et importées dans DefectDojo. Failles actives : `lynis-test` 2 Medium et 44 Low (référence non durcie) ; VM durcies : 1 à 2 Medium et 18 à 21 Low.
+- Optimisation de la CI (pipelining Ansible, `sysctl` en un seul fichier) : étape d'idempotence de **258 s à 78 s**. Job `deploy` sans nouvelle VM : 2 min 46 (n°143), contre 14 min 20 pour le job qui créait `grafana` (n°135, dont environ 3 min 30 propres à une VM neuve : paquets et base AIDE).
 
 ## Limites
 
 - Le runner tourne sur la VM `gitlab` (exécuteur Docker non privilégié) : un job compromis est sur la même machine que la forge. C'est un compromis de ressources assumé.
 - Un seul hôte Proxmox : pas de haute disponibilité. `gestion` et sa CA sont des points uniques de défaillance (à sauvegarder).
 - `lynis-test` reste volontairement non durcie : c'est la référence de comparaison.
+- Les faux positifs marqués à la main dans DefectDojo (PKGS-7388 notamment) le sont par test : ils réapparaissent comme actifs dans l'engagement « Audit Lynis continu (CI) ». C'est pourquoi les VM durcies y affichent 1 à 2 Medium au lieu de 0 : vérifié, ce sont uniquement PKGS-7388 (dépôt de sécurité au format deb822, que Lynis ne lit pas) et FIRE-4512 sur les VM sans Docker (Lynis cherche des règles iptables, le pare-feu est en nftables). TIME-3185 apparaît aussi selon l'heure de l'audit : faux positif vérifié (`NTPSynchronized=yes`, décalage de quelques ms), Lynis mesure l'âge de `/run/systemd/timesync/synchronized`, qui n'est pas mis à jour à chaque synchronisation.
 - La base AIDE est créée au premier durcissement : les logiciels installés ensuite (GitLab, Grafana…) apparaissent comme des ajouts tant que la base n'est pas mise à jour (`aide --update`).
 - Le récepteur des métriques (remote write) n'a pas d'authentification applicative : il est protégé par TLS et par le filtrage des adresses sources.

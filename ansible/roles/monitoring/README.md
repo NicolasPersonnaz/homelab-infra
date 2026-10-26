@@ -56,7 +56,18 @@ tsh ssh root@grafana "curl -s 'http://127.0.0.1:9090/api/v1/label/instance/value
 
 ## Résultat vérifié
 
-À compléter après le déploiement.
+- Job `deploy` n°135 (pipeline 23) : `Plan: 1 to add`, VM `grafana` créée, amorcée (`failed=0`), puis configurée à travers Teleport (`changed=32`). Second passage `changed=0` sur les 4 VM.
+- `ansible-playbook grafana.yml` : `ok=42 changed=28 failed=0` en 2 min 07, puis `changed=0`.
+- `prometheus`, `grafana-server`, `nginx`, `otelcol` : `active`.
+- Prometheus reçoit les 5 VM : `defectdojo`, `gitlab`, `grafana`, `hardening-test`, `lynis-test` (`count by (instance) (system_cpu_load_average_1m)`).
+- Pare-feu de `grafana` : `ip saddr { .69, .70, .71, .72, .73 } tcp dport 9443 accept`. Depuis un poste du LAN : HTTPS `200` sur le port 443, port 9443 injoignable.
+- `gitlab.yml` (collecteur sur `gitlab`) : `changed=7`, puis `changed=0`.
+
+## Pièges rencontrés
+
+- Le paquet Prometheus de Debian n'a pas le récepteur OTLP (voir plus haut) : détecté par un test local avant le déploiement, et non par l'aide en ligne, qui ne liste pas toutes les options retirées.
+- La clé d'hôte SSH d'une VM neuve est inconnue de `gestion` (`Host key verification failed`). Elle a été ajoutée après comparaison de l'empreinte relevée par `ssh-keyscan` avec celle lue sur la VM à travers Teleport, et non acceptée à l'aveugle.
+- Les étiquettes `instance="localhost:9090"` et `localhost:9100` viennent du `prometheus.yml` par défaut du paquet, actif quelques secondes avant d'être remplacé. Elles restent visibles jusqu'à la fin de la rétention, sans effet sur le tableau de bord (filtré sur les métriques des collecteurs).
 
 ## Limites
 
