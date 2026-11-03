@@ -11,3 +11,5 @@
         internal_tls_hostname: "{{ defectdojo_hostname }}"
         internal_tls_ip: "{{ defectdojo_ip }}"
     - defectdojo
+    - role: restic
+      tags: [restic]

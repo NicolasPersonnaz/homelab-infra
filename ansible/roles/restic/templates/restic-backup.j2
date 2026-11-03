@@ -6,7 +6,7 @@ set -euo pipefail
 {{ command }}
 {% endfor %}
 
-restic-nas backup --tag {{ inventory_hostname | quote }} \
+restic-nas backup --tag {{ restic_name | quote }} \
 {% for path in restic_paths %}
   {{ path | quote }}{{ ' \\' if not loop.last }}
 {% endfor %}

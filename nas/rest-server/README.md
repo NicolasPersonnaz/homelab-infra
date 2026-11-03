@@ -55,7 +55,7 @@ Le 2026-11-03, NAS UGREEN DXP4800 (projet Docker UGOS), VM `gitlab` (Debian 13, 
 - `restic init` : dépôt créé (version 2).
 - `restic backup /tmp/t` : snapshot enregistré.
 - `restic forget <id>` depuis la VM : refusé, `unexpected HTTP response (403): 403 Forbidden`. Le mode `--append-only` fonctionne.
-- Non testé : l'accès d'un autre compte au dépôt `/gitlab/` (un seul compte existe pour l'instant).
+- Isolation vérifiée ensuite : le compte `defectdojo` sur `/gitlab/` reçoit `401 Unauthorized`. Comptes : `gitlab`, `defectdojo`, `grafana`, `gestion`.
 
 ## Pièges rencontrés
 

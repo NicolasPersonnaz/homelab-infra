@@ -1,3 +1,19 @@
 ---
 # DefectDojo : HTTPS (et redirection HTTP) ouverts au LAN par le pare-feu du rôle hardening
 hardening_firewall_tcp_ports: [80, 443]
+
+# Sauvegarde hebdomadaire vers le NAS (rôle restic) : base, clés de chiffrement, pièces jointes
+restic_paths:
+  - /var/backups/defectdojo
+  - /opt/defectdojo/secrets.env
+  - /opt/defectdojo/config.env
+  - /var/lib/docker/volumes/defectdojo_defectdojo_media/_data
+restic_pre_commands:
+  - install -d -m 700 /var/backups/defectdojo
+  # Export SQL non compressé : restic le déduplique d'une semaine à l'autre
+  - >-
+    docker compose --project-directory /opt/defectdojo exec -T postgres
+    sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists'
+    > /var/backups/defectdojo/defectdojo.sql
+restic_post_commands:
+  - rm -f /var/backups/defectdojo/defectdojo.sql

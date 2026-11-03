@@ -10,3 +10,5 @@
         internal_tls_hostname: "{{ monitoring_hostname }}"
         internal_tls_ip: "{{ monitoring_ip }}"
     - monitoring
+    - role: restic
+      tags: [restic]

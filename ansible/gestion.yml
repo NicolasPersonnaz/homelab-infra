@@ -5,3 +5,14 @@
   roles:
     - gitlab_client
     - teleport_ci
+    # Ce qui n'est pas dans Git et ne se recrée pas : CA, Teleport, jeton Proxmox, valeurs réelles
+    - role: restic
+      tags: [restic]
+      vars:
+        restic_name: gestion
+        restic_paths:
+          - /root/homelab-ca
+          - /root/homelab-teleport
+          - /root/.config/homelab
+          - /root/homelab-infra/terraform/terraform.tfvars
+          - /root/homelab-infra/ansible/inventories/homelab/group_vars

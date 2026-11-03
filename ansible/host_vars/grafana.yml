@@ -10,3 +10,16 @@ hardening_aide_exclusions:
   - /var/lib/prometheus
   - /var/lib/grafana
   - /var/log/grafana
+
+# Sauvegarde hebdomadaire vers le NAS (rôle restic) : base Grafana et configuration.
+# Plugins réinstallables, historique Prometheus (30 j) régénéré : non sauvegardés.
+restic_extra_packages: [sqlite3]
+restic_paths:
+  - /var/backups/grafana
+  - /etc/grafana
+restic_pre_commands:
+  - install -d -m 700 /var/backups/grafana
+  # Copie cohérente de la base SQLite pendant que Grafana tourne
+  - sqlite3 /var/lib/grafana/grafana.db ".backup /var/backups/grafana/grafana.db"
+restic_post_commands:
+  - rm -f /var/backups/grafana/grafana.db

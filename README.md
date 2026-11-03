@@ -106,7 +106,7 @@ Reconstruire = `terraform apply` + playbooks Ansible + `restic restore` des donn
 
 | Besoin | Outil | Quand |
 |---|---|---|
-| Données d'une VM (GitLab : base, dépôts, état Terraform, `gitlab-secrets.json`) | rôle `restic` → rest-server sur le NAS | chaque dimanche à 3 h |
+| Données de `gitlab`, `defectdojo`, `grafana` et `gestion` (bases, dépôts, état Terraform, clés, CA) | rôle `restic` → rest-server sur le NAS | chaque dimanche à 3 h |
 | Rétention (4 sauvegardes hebdomadaires) et `restic check` | `nas/restic-maintenance`, sur le NAS | chaque dimanche à 5 h |
 | Retour arrière après une mise à jour ratée | rôle `proxmox_snapshot` (3 derniers `avant_maj_*`) | à la demande |
 
@@ -182,13 +182,14 @@ L'état est hébergé par GitLab. Ne lance jamais `apply` en même temps que la 
 - Optimisation de la CI (pipelining Ansible, `sysctl` en un seul fichier) : étape d'idempotence de **258 s à 78 s**. Job `deploy` sans nouvelle VM : 2 min 46 (n°143), contre 14 min 20 pour le job qui créait `grafana` (n°135, dont environ 3 min 30 propres à une VM neuve : paquets et base AIDE).
 
 - Sauvegarde (2026-11-03) : rôle `restic` sur `gitlab` (`changed=0` au second passage), première sauvegarde en 37 s. `restic forget` depuis la VM refusé (`403 Forbidden`, append-only). Restauration des fichiers vérifiée : secrets et configuration identiques, base `gzip -t` OK, bundles git lisibles. Maintenance du NAS : `check` sans erreur.
+- Sauvegarde étendue à `defectdojo`, `grafana` et `gestion` : secrets générés sans affichage, `changed=0` au second passage, restaurations vérifiées (dump SQL complet, `integrity_check` SQLite `ok`, CA identique), compte `defectdojo` refusé sur le dépôt `gitlab` (`401`), maintenance du NAS sans erreur sur les 4 dépôts.
 - Snapshots : `snapshot.yml -l gitlab` crée `avant_maj_<date>` par l'API Proxmox ; au 4ᵉ passage, le plus ancien est supprimé (3 conservés). Sans tag, `gitlab.yml` ne prend aucun snapshot.
 
 ## Limites
 
 - Le runner tourne sur la VM `gitlab` (exécuteur Docker non privilégié) : un job compromis est sur la même machine que la forge. C'est un compromis de ressources assumé.
-- Un seul hôte Proxmox : pas de haute disponibilité. `gestion` et sa CA sont des points uniques de défaillance (pas encore sauvegardés).
-- Sauvegarde : seule `gitlab` est sauvegardée pour l'instant. Une seule copie, sur le NAS (pas de copie hors site). Restauration complète de GitLab (`gitlab-backup restore` sur une VM neuve) et retour arrière sur snapshot pas encore testés. Pas d'alerte en cas d'échec.
+- Un seul hôte Proxmox : pas de haute disponibilité. `gestion` et sa CA sont des points uniques de défaillance (sauvegardés sur le NAS).
+- Sauvegarde : une seule copie, sur le NAS (pas de copie hors site). Restauration complète de GitLab (`gitlab-backup restore` sur une VM neuve) et retour arrière sur snapshot pas encore testés. Pas d'alerte en cas d'échec.
 - `lynis-test` reste volontairement non durcie : c'est la référence de comparaison.
 - Les faux positifs marqués à la main dans DefectDojo (PKGS-7388 notamment) le sont par test : ils réapparaissent comme actifs dans l'engagement « Audit Lynis continu (CI) ». C'est pourquoi les VM durcies y affichent 1 à 2 Medium au lieu de 0 : vérifié, ce sont uniquement PKGS-7388 (dépôt de sécurité au format deb822, que Lynis ne lit pas) et FIRE-4512 sur les VM sans Docker (Lynis cherche des règles iptables, le pare-feu est en nftables). TIME-3185 apparaît aussi selon l'heure de l'audit : faux positif vérifié (`NTPSynchronized=yes`, décalage de quelques ms), Lynis mesure l'âge de `/run/systemd/timesync/synchronized`, qui n'est pas mis à jour à chaque synchronisation.
 - La base AIDE est créée au premier durcissement : les logiciels installés ensuite (GitLab, Grafana…) apparaissent comme des ajouts tant que la base n'est pas mise à jour (`aide --update`).
