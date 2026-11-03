@@ -1,0 +1,17 @@
+---
+# Sauvegarde restic vers le rest-server du NAS (nas/rest-server) : un compte et un dépôt par VM.
+restic_server_url: ""                            # http://<ip-nas>:8000 (group_vars, non versionné)
+restic_repository: "rest:{{ restic_server_url }}/{{ inventory_hostname }}/"
+restic_rest_username: "{{ inventory_hostname }}"
+restic_rest_password: ""                         # compte du rest-server, saisi au prompt, jamais stocké
+restic_password: ""                              # chiffrement du dépôt, saisi au prompt, jamais stocké
+restic_config_dir: /etc/restic
+restic_cache_dir: /var/cache/restic
+
+# Ce qui est sauvegardé (host_vars) : dossiers, commandes avant et après une sauvegarde réussie
+restic_paths: []
+restic_pre_commands: []
+restic_post_commands: []
+
+# Hebdomadaire ; la rétention (forget --prune) est appliquée par le NAS, pas par la VM (append-only)
+restic_on_calendar: "Sun *-*-* 03:00:00"

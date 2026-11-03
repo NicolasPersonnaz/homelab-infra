@@ -1,0 +1,94 @@
+---
+# Tout passe par l'API Proxmox depuis le contrôleur : rien n'est exécuté sur la VM.
+- name: Vérifier l'adresse de l'API Proxmox
+  ansible.builtin.assert:
+    that: proxmox_snapshot_api_host | length > 0
+    fail_msg: "proxmox_snapshot_api_host est obligatoire (inventories/homelab/group_vars/all.yml)."
+    quiet: true
+
+- name: Installer proxmoxer sur le contrôleur
+  ansible.builtin.apt:
+    name: python3-proxmoxer
+    state: present
+  delegate_to: localhost
+  run_once: true
+
+- name: Lire le jeton Proxmox
+  ansible.builtin.set_fact:
+    proxmox_snapshot_token: "{{ lookup('ansible.builtin.file', proxmox_snapshot_token_file) }}"
+  no_log: true
+
+- name: Retrouver la VM par son nom
+  community.proxmox.proxmox_vm_info:
+    api_host: "{{ proxmox_snapshot_api_host }}"
+    api_user: "{{ proxmox_snapshot_token.split('!')[0] }}"
+    api_token_id: "{{ proxmox_snapshot_token.split('!')[1].split('=')[0] }}"
+    api_token_secret: "{{ proxmox_snapshot_token.split('=', 1)[1] }}"
+    validate_certs: "{{ proxmox_snapshot_validate_certs }}"
+    name: "{{ proxmox_snapshot_vm_name }}"
+    type: qemu
+  delegate_to: localhost
+  register: proxmox_snapshot_vm
+  no_log: true
+
+- name: Exiger une VM unique
+  ansible.builtin.assert:
+    that: proxmox_snapshot_vm.proxmox_vms | length == 1
+    fail_msg: "{{ proxmox_snapshot_vm.proxmox_vms | length }} VM nommée(s) {{ proxmox_snapshot_vm_name }} dans Proxmox."
+    quiet: true
+
+- name: Créer le snapshot
+  community.proxmox.proxmox_snap:
+    api_host: "{{ proxmox_snapshot_api_host }}"
+    api_user: "{{ proxmox_snapshot_token.split('!')[0] }}"
+    api_token_id: "{{ proxmox_snapshot_token.split('!')[1].split('=')[0] }}"
+    api_token_secret: "{{ proxmox_snapshot_token.split('=', 1)[1] }}"
+    validate_certs: "{{ proxmox_snapshot_validate_certs }}"
+    vmid: "{{ proxmox_snapshot_vm.proxmox_vms[0].vmid }}"
+    snapname: "{{ proxmox_snapshot_prefix }}_{{ now(fmt='%Y%m%d_%H%M%S') }}"
+    description: "Avant mise à jour (Ansible)"
+    vmstate: false
+    timeout: "{{ proxmox_snapshot_timeout }}"
+    state: present
+  delegate_to: localhost
+  no_log: true
+
+- name: Lister les snapshots de la VM
+  ansible.builtin.uri:
+    url: >-
+      https://{{ proxmox_snapshot_api_host }}:8006/api2/json/nodes/{{ proxmox_snapshot_vm.proxmox_vms[0].node
+      }}/qemu/{{ proxmox_snapshot_vm.proxmox_vms[0].vmid }}/snapshot
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_snapshot_token }}"
+    validate_certs: "{{ proxmox_snapshot_validate_certs }}"
+  delegate_to: localhost
+  register: proxmox_snapshot_list
+  no_log: true
+
+- name: Snapshots de mise à jour, du plus ancien au plus récent
+  ansible.builtin.set_fact:
+    proxmox_snapshot_names: >-
+      {{ proxmox_snapshot_list.json.data | map(attribute='name')
+         | select('match', proxmox_snapshot_prefix ~ '_') | sort | list }}
+
+# Ne garde que les N plus récents portant le préfixe ; les snapshots manuels ne sont jamais touchés
+- name: Supprimer les anciens snapshots de mise à jour
+  community.proxmox.proxmox_snap:
+    api_host: "{{ proxmox_snapshot_api_host }}"
+    api_user: "{{ proxmox_snapshot_token.split('!')[0] }}"
+    api_token_id: "{{ proxmox_snapshot_token.split('!')[1].split('=')[0] }}"
+    api_token_secret: "{{ proxmox_snapshot_token.split('=', 1)[1] }}"
+    validate_certs: "{{ proxmox_snapshot_validate_certs }}"
+    vmid: "{{ proxmox_snapshot_vm.proxmox_vms[0].vmid }}"
+    snapname: "{{ item }}"
+    timeout: "{{ proxmox_snapshot_timeout }}"
+    state: absent
+  loop: "{{ proxmox_snapshot_names[:-proxmox_snapshot_keep] }}"
+  loop_control:
+    label: "{{ item }}"
+  delegate_to: localhost
+  no_log: true
+
+- name: Snapshots de mise à jour conservés
+  ansible.builtin.debug:
+    msg: "{{ proxmox_snapshot_names[-proxmox_snapshot_keep:] }}"

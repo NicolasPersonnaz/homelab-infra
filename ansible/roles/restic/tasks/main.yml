@@ -1,0 +1,99 @@
+---
+- name: Vérifier les paramètres de sauvegarde
+  ansible.builtin.assert:
+    that:
+      - restic_server_url | length > 0
+      - restic_paths | length > 0
+    fail_msg: "restic_server_url (group_vars) et restic_paths (host_vars) sont obligatoires."
+    quiet: true
+
+- name: Installer restic
+  ansible.builtin.apt:
+    name: restic
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Dossiers de configuration et de cache
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop:
+    - "{{ restic_config_dir }}"
+    - "{{ restic_cache_dir }}"
+
+# Secrets dans des fichiers bruts (aucun échappement) : un vide au prompt garde le fichier existant.
+- name: Secrets déjà déposés ?
+  ansible.builtin.stat:
+    path: "{{ restic_config_dir }}/{{ item }}"
+  loop: [password, rest-password]
+  register: restic_secret_files
+
+- name: Refuser de continuer sans secrets
+  ansible.builtin.fail:
+    msg: "Secrets restic absents de la VM : saisir les deux mots de passe au prompt."
+  when: >-
+    (restic_secret_files.results | rejectattr('stat.exists') | list | length > 0)
+    and (restic_password | length == 0 or restic_rest_password | length == 0)
+
+- name: Mot de passe du dépôt
+  ansible.builtin.copy:
+    content: "{{ restic_password }}"
+    dest: "{{ restic_config_dir }}/password"
+    owner: root
+    group: root
+    mode: "0600"
+  when: restic_password | length > 0
+  no_log: true
+
+- name: Mot de passe du compte rest-server
+  ansible.builtin.copy:
+    content: "{{ restic_rest_password }}"
+    dest: "{{ restic_config_dir }}/rest-password"
+    owner: root
+    group: root
+    mode: "0600"
+  when: restic_rest_password | length > 0
+  no_log: true
+
+- name: Commande restic-nas (restic configuré pour le dépôt de la VM)
+  ansible.builtin.template:
+    src: restic-nas.j2
+    dest: /usr/local/sbin/restic-nas
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Script de sauvegarde
+  ansible.builtin.template:
+    src: restic-backup.j2
+    dest: /usr/local/sbin/restic-backup
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Service et timer systemd
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - restic-backup.service
+    - restic-backup.timer
+  notify: Recharger systemd
+
+- name: Appliquer les unités modifiées avant d'activer le timer
+  ansible.builtin.meta: flush_handlers
+
+- name: Activer le timer de sauvegarde
+  ansible.builtin.systemd:
+    name: restic-backup.timer
+    enabled: true
+    state: started
+  # En --check, l’unité n’est pas encore écrite
+  ignore_errors: "{{ ansible_check_mode }}"

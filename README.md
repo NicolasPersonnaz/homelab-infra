@@ -1,6 +1,6 @@
 # homelab-infra
 
-Infrastructure as Code d'un homelab Proxmox : **Terraform** crée les VM, **Ansible** les configure et les durcit, **GitLab CI** enchaîne le tout. Tous les accès passent par **Teleport**. **DefectDojo** suit les audits de sécurité, **Grafana** affiche les métriques.
+Infrastructure as Code d'un homelab Proxmox : **Terraform** crée les VM, **Ansible** les configure et les durcit, **GitLab CI** enchaîne le tout. Tous les accès passent par **Teleport**. **DefectDojo** suit les audits de sécurité, **Grafana** affiche les métriques. Les données sont sauvegardées chaque semaine avec **restic** sur le NAS.
 
 Objectif : un homelab reconstructible à partir du dépôt, sans geste manuel répété et sans secret stocké, où chaque choix peut être justifié.
 
@@ -15,6 +15,8 @@ flowchart LR
     CI -->|"3. Ansible via Teleport"| VMs
     VMs -->|"métriques<br/>(collecteur OTel)"| GF["VM grafana<br/>Prometheus + Grafana"]
     CI -->|"4. audits Lynis"| DD["VM defectdojo"]
+    VMs -->|"restic hebdomadaire<br/>(append-only)"| NAS["NAS : rest-server"]
+    GES["gestion"] -->|"snapshot à la demande<br/>API Proxmox"| PVE
 ```
 
 | VM | Rôle | Configurée par |
@@ -34,11 +36,12 @@ La liste des VM est dans [`terraform/vms.tf`](terraform/vms.tf).
 terraform/   VM Proxmox (for_each sur var.vms), état hébergé par GitLab
 ansible/     rôles (roles/), playbooks, inventaire, variables par VM (host_vars/)
 ci/          scripts des jobs : plan.sh, deploy.sh, audit.sh, common.sh
+nas/         services Docker du NAS : rest-server (cible restic), maintenance des dépôts
 docs/        audit Lynis de référence
 .gitlab-ci.yml
 ```
 
-Détails : [terraform/README.md](terraform/README.md), [ansible/README.md](ansible/README.md), et les README des rôles `gitlab`, `defectdojo`, `hardening`, `monitoring`.
+Détails : [terraform/README.md](terraform/README.md), [ansible/README.md](ansible/README.md), et les README des rôles `gitlab`, `defectdojo`, `hardening`, `monitoring`, `restic`, `proxmox_snapshot`, ainsi que [nas/rest-server](nas/rest-server/README.md) et [nas/restic-maintenance](nas/restic-maintenance/README.md).
 
 ## Le pipeline
 
@@ -97,6 +100,27 @@ ansible-playbook homelab.yml --check --diff   # ou gitlab.yml, grafana.yml…
 
 Les VM créées par Terraform sont configurées par le job `deploy`. Les applications qui ont besoin de la CA interne (`gitlab`, `defectdojo`, `grafana`) ont leur playbook, lancé depuis `gestion`, où se trouve la clé de la CA.
 
+### Sauvegarder, restaurer, revenir en arrière
+
+Reconstruire = `terraform apply` + playbooks Ansible + `restic restore` des données. Trois niveaux :
+
+| Besoin | Outil | Quand |
+|---|---|---|
+| Données d'une VM (GitLab : base, dépôts, état Terraform, `gitlab-secrets.json`) | rôle `restic` → rest-server sur le NAS | chaque dimanche à 3 h |
+| Rétention (4 sauvegardes hebdomadaires) et `restic check` | `nas/restic-maintenance`, sur le NAS | chaque dimanche à 5 h |
+| Retour arrière après une mise à jour ratée | rôle `proxmox_snapshot` (3 derniers `avant_maj_*`) | à la demande |
+
+```bash
+cd ansible
+ansible-playbook snapshot.yml -l gitlab           # snapshot avant une mise à jour
+ansible-playbook gitlab.yml --tags all,snapshot   # snapshot puis playbook complet
+# Sur la VM : restic déjà configuré pour son dépôt
+restic-nas snapshots
+restic-nas restore latest --target /tmp/restauration
+```
+
+Les mots de passe restic ne sont jamais dans le dépôt : saisis au prompt (ou déposés une fois sur la VM), et conservés hors de l'infrastructure.
+
 ### Installer la supervision
 
 Après le premier `deploy` qui crée la VM `grafana` :
@@ -143,6 +167,7 @@ L'état est hébergé par GitLab. Ne lance jamais `apply` en même temps que la 
 | Métriques **poussées** par OpenTelemetry | Aucun port d'écoute ajouté sur les VM. Le récepteur n'accepte que les adresses des VM |
 | Jeton DefectDojo lu dans Django au moment de l'import, sur sa VM | Aucun jeton d'API stocké dans la CI |
 | Versions épinglées (GitLab, Teleport, Grafana, collecteur, DefectDojo) et `apt-mark hold` | Une montée de version est un commit, pas une surprise |
+| Sauvegardes restic vers rest-server en `--append-only`, un compte par VM (`--private-repos`) | Une VM compromise ne peut ni effacer ni lire les sauvegardes des autres ; seule la maintenance, sur le NAS, supprime |
 | `gitleaks` sur tout l'historique, dépôt public | Les valeurs réelles vivent dans des fichiers ignorés par Git (`*.example` fournis) |
 
 ## Résultats vérifiés
@@ -156,10 +181,14 @@ L'état est hébergé par GitLab. Ne lance jamais `apply` en même temps que la 
 - Audit continu (job `lynis-audit` du pipeline 23) : 5 VM auditées et importées dans DefectDojo. Failles actives : `lynis-test` 2 Medium et 44 Low (référence non durcie) ; VM durcies : 1 à 2 Medium et 18 à 21 Low.
 - Optimisation de la CI (pipelining Ansible, `sysctl` en un seul fichier) : étape d'idempotence de **258 s à 78 s**. Job `deploy` sans nouvelle VM : 2 min 46 (n°143), contre 14 min 20 pour le job qui créait `grafana` (n°135, dont environ 3 min 30 propres à une VM neuve : paquets et base AIDE).
 
+- Sauvegarde (2026-11-03) : rôle `restic` sur `gitlab` (`changed=0` au second passage), première sauvegarde en 37 s. `restic forget` depuis la VM refusé (`403 Forbidden`, append-only). Restauration des fichiers vérifiée : secrets et configuration identiques, base `gzip -t` OK, bundles git lisibles. Maintenance du NAS : `check` sans erreur.
+- Snapshots : `snapshot.yml -l gitlab` crée `avant_maj_<date>` par l'API Proxmox ; au 4ᵉ passage, le plus ancien est supprimé (3 conservés). Sans tag, `gitlab.yml` ne prend aucun snapshot.
+
 ## Limites
 
 - Le runner tourne sur la VM `gitlab` (exécuteur Docker non privilégié) : un job compromis est sur la même machine que la forge. C'est un compromis de ressources assumé.
-- Un seul hôte Proxmox : pas de haute disponibilité. `gestion` et sa CA sont des points uniques de défaillance (à sauvegarder).
+- Un seul hôte Proxmox : pas de haute disponibilité. `gestion` et sa CA sont des points uniques de défaillance (pas encore sauvegardés).
+- Sauvegarde : seule `gitlab` est sauvegardée pour l'instant. Une seule copie, sur le NAS (pas de copie hors site). Restauration complète de GitLab (`gitlab-backup restore` sur une VM neuve) et retour arrière sur snapshot pas encore testés. Pas d'alerte en cas d'échec.
 - `lynis-test` reste volontairement non durcie : c'est la référence de comparaison.
 - Les faux positifs marqués à la main dans DefectDojo (PKGS-7388 notamment) le sont par test : ils réapparaissent comme actifs dans l'engagement « Audit Lynis continu (CI) ». C'est pourquoi les VM durcies y affichent 1 à 2 Medium au lieu de 0 : vérifié, ce sont uniquement PKGS-7388 (dépôt de sécurité au format deb822, que Lynis ne lit pas) et FIRE-4512 sur les VM sans Docker (Lynis cherche des règles iptables, le pare-feu est en nftables). TIME-3185 apparaît aussi selon l'heure de l'audit : faux positif vérifié (`NTPSynchronized=yes`, décalage de quelques ms), Lynis mesure l'âge de `/run/systemd/timesync/synchronized`, qui n'est pas mis à jour à chaque synchronisation.
 - La base AIDE est créée au premier durcissement : les logiciels installés ensuite (GitLab, Grafana…) apparaissent comme des ajouts tant que la base n'est pas mise à jour (`aide --update`).

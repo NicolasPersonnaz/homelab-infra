@@ -1,0 +1,27 @@
+# rest-server : cible des sauvegardes restic des VM, hébergée sur le NAS.
+# Valeurs propres au site dans .env (non versionné), voir .env.example.
+services:
+  rest-server:
+    image: restic/rest-server:0.14.0
+    container_name: rest-server
+    restart: unless-stopped
+    # Utilisateur non root, propriétaire du dossier de données sur le NAS
+    user: "${PUID:?PUID manquant}:${PGID:?PGID manquant}"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      # --append-only  : un client peut écrire mais jamais supprimer
+      # --private-repos: l'utilisateur « gitlab » n'accède qu'au dépôt /gitlab/
+      # --log -        : journal des requêtes HTTP sur la sortie standard
+      OPTIONS: "--append-only --private-repos --log -"
+    ports:
+      # Publié uniquement sur l'adresse LAN du NAS
+      - "${REST_SERVER_BIND:?REST_SERVER_BIND manquant}:8000:8000"
+    volumes:
+      # Dépôts restic + .htpasswd (créé par l'image au premier démarrage)
+      - "${REST_SERVER_DATA:?REST_SERVER_DATA manquant}:/data"

@@ -182,7 +182,7 @@ Migration de l'état local vers GitLab : jeton d'accès GitLab temporaire (1 jou
 | La CA doit être importée à la main sur chaque poste client | Distribution de la CA par Ansible sur les machines gérées |
 | Mot de passe initial de `root` lu dans `/etc/gitlab/initial_root_password` (supprimé après 24 h) | À changer dès la première connexion ; sinon `gitlab-rake "gitlab:password:reset[root]"` (invite masquée) |
 | Pas de DNS : le nom se résout par `/etc/hosts` | Enregistrement sur le DNS local |
-| Pas de sauvegarde | `gitlab-backup create` planifié + copie de `/etc/gitlab/gitlab-secrets.json` hors de la VM |
+| Sauvegarde hebdomadaire seulement, restauration pas encore testée | Rôle `restic` : `gitlab-backup` + `gitlab-secrets.json` vers le NAS ; test de restauration à faire |
 | Les clés de signature GitLab sont copiées dans le jeton Teleport (`static_jwks`) : si GitLab les change, la jonction échoue | Relancer `gestion.yml` puis `tctl create -f token.yaml` |
 
 | Le bot peut créer des jetons de jonction de **n'importe quel type** (la règle RBAC `token/create` ne filtre pas le type) : quiconque peut pousser sur `main` protégée pourrait en abuser | Compromis assumé (un seul administrateur). Pistes : approbation obligatoire du job, ou méthode de jonction sans jeton |

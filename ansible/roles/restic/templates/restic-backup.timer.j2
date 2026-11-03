@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Sauvegarde restic planifiée
+
+[Timer]
+OnCalendar={{ restic_on_calendar }}
+# Rattrape une sauvegarde manquée (VM éteinte à l'heure prévue)
+Persistent=true
+
+[Install]
+WantedBy=timers.target

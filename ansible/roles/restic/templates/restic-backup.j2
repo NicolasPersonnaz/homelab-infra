@@ -1,0 +1,15 @@
+#!/bin/bash
+# {{ ansible_managed }}
+# Commandes préalables, sauvegarde, puis commandes de fin seulement si tout a réussi.
+set -euo pipefail
+{% for command in restic_pre_commands %}
+{{ command }}
+{% endfor %}
+
+restic-nas backup --tag {{ inventory_hostname | quote }} \
+{% for path in restic_paths %}
+  {{ path | quote }}{{ ' \\' if not loop.last }}
+{% endfor %}
+{% for command in restic_post_commands %}
+{{ command }}
+{% endfor %}

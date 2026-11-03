@@ -1,0 +1,11 @@
+---
+# Snapshot Proxmox de la VM avant une mise à jour, à la demande (tags [never, snapshot]).
+proxmox_snapshot_api_host: ""                    # adresse de l'API Proxmox (group_vars, non versionné)
+# Même jeton que Terraform (tf.sh), lu sur le contrôleur : user@realm!id=secret
+proxmox_snapshot_token_file: /root/.config/homelab/proxmox-token
+proxmox_snapshot_validate_certs: false           # certificat auto-signé, comme le fournisseur Terraform
+proxmox_snapshot_vm_name: "{{ inventory_hostname }}"
+# Seuls les snapshots portant ce préfixe sont comptés et supprimés : les snapshots manuels restent
+proxmox_snapshot_prefix: avant_maj
+proxmox_snapshot_keep: 3
+proxmox_snapshot_timeout: 300

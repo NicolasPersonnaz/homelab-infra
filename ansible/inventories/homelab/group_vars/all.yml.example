@@ -1,0 +1,4 @@
+---
+# Copier en all.yml (non versionné) et adapter.
+# API Proxmox (rôle proxmox_snapshot)
+proxmox_snapshot_api_host: 192.168.1.10

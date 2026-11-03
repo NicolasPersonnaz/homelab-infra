@@ -1,0 +1,11 @@
+#!/bin/bash
+# {{ ansible_managed }}
+# restic vers le dépôt de cette VM sur le NAS. Usage : restic-nas snapshots | restore | ...
+set -euo pipefail
+export RESTIC_REPOSITORY={{ restic_repository | quote }}
+export RESTIC_REST_USERNAME={{ restic_rest_username | quote }}
+export RESTIC_PASSWORD_FILE={{ (restic_config_dir ~ '/password') | quote }}
+export RESTIC_CACHE_DIR={{ restic_cache_dir | quote }}
+RESTIC_REST_PASSWORD=$(<{{ (restic_config_dir ~ '/rest-password') | quote }})
+export RESTIC_REST_PASSWORD
+exec restic "$@"

@@ -8,7 +8,18 @@
       prompt: "Jeton du runner glrt- (vide si déjà enregistré ou pas encore créé)"
       private: true
       default: ""
+    - name: restic_rest_password
+      prompt: "Mot de passe du compte rest-server (vide si déjà déposé sur la VM)"
+      private: true
+      default: ""
+    - name: restic_password
+      prompt: "Mot de passe du dépôt restic (vide si déjà déposé sur la VM)"
+      private: true
+      default: ""
   roles:
+    # Snapshot Proxmox seulement sur demande : --tags all,snapshot
+    - role: proxmox_snapshot
+      tags: [never, snapshot]
     - common
     - users
     - ssh
@@ -19,3 +30,5 @@
     - teleport_node
     - otel_collector
     - hardening
+    - role: restic
+      tags: [restic]

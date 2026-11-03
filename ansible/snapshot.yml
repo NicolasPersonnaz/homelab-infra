@@ -1,0 +1,15 @@
+---
+# Snapshot Proxmox à la demande, avant une mise à jour : ansible-playbook snapshot.yml -l <vm>
+- name: Snapshot Proxmox avant mise à jour
+  hosts: all:!gestion
+  become: true
+  gather_facts: false
+  pre_tasks:
+    - name: Exiger une cible explicite (-l)
+      ansible.builtin.assert:
+        that: ansible_limit is defined
+        fail_msg: "Préciser la ou les VM : ansible-playbook snapshot.yml -l <vm>"
+        quiet: true
+      run_once: true
+  roles:
+    - proxmox_snapshot

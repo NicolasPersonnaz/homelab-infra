@@ -2,3 +2,5 @@
 # Copier en gitlab.yml (non versionné) et adapter.
 gitlab_hostname: gitlab.example.lan
 gitlab_ip: 192.168.1.61
+# rest-server du NAS (rôle restic)
+restic_server_url: http://192.168.1.50:8000

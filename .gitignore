@@ -13,3 +13,6 @@ ansible/inventories/homelab/group_vars/gestion.yml
 .env
 *.env
 ansible/inventories/homelab/group_vars/*.yml
+
+# Valeurs réelles des services du NAS
+nas/**/.env

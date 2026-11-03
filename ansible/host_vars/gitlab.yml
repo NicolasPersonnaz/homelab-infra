@@ -5,3 +5,14 @@ hardening_firewall_tcp_ports: [80, 443]
 hardening_aide_exclusions:
   - /var/opt/gitlab
   - /var/log/gitlab
+
+# Sauvegarde hebdomadaire vers le NAS (rôle restic) : surtout ce que GitHub n'a pas
+restic_paths:
+  - /etc/gitlab/gitlab-secrets.json
+  - /etc/gitlab/gitlab.rb
+  - /var/opt/gitlab/backups
+restic_pre_commands:
+  - find /var/opt/gitlab/backups -name '*_gitlab_backup.tar' -delete
+  - CRON=1 gitlab-backup create SKIP=artifacts,registry
+restic_post_commands:
+  - find /var/opt/gitlab/backups -name '*_gitlab_backup.tar' -delete
