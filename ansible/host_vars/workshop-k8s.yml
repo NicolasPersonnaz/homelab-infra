@@ -1,0 +1,7 @@
+---
+# Nœud Kubernetes prêté : nftables en refus par défaut casserait le CNI et kube-proxy
+hardening_enabled: false
+# access=workshop : seul nœud visible par le rôle Teleport workshop (env=homelab garde la CI)
+teleport_node_labels:
+  env: homelab
+  access: workshop

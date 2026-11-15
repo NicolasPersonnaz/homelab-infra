@@ -42,5 +42,12 @@ variable "vms" {
       memory    = 2048
       disk_size = 20
     }
+    # Nœud Kubernetes prêté à un tiers : accès Teleport limité au rôle workshop
+    workshop-k8s = {
+      ip        = "192.168.1.74"
+      cores     = 2
+      memory    = 8192
+      disk_size = 80
+    }
   }
 }
